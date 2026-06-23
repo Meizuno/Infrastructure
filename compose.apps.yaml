@@ -46,7 +46,11 @@ services:
     image: ghcr.io/meizuno/ai-chat:latest
     environment:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
-      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
+      # Split auth URLs: server-to-server stays internal (no hairpin), the
+      # browser OAuth flow uses the public auth origin.
+      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
+      NUXT_COOKIE_DOMAIN: .meizuno.com
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
