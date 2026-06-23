@@ -26,6 +26,9 @@ services:
       ALLOWED_EMAILS: ${ALLOWED_EMAILS}
       # Exact-match allow-list for each app's post-login redirect (open-redirect guard)
       ALLOWED_REDIRECT_URLS: https://chat.meizuno.com/api/auth/callback,https://money.meizuno.com/api/auth/callback,https://recipes.meizuno.com/api/auth/callback,https://notes.meizuno.com/api/auth/callback
+      # Issue the access/refresh cookies on the parent domain so one sign-in
+      # is shared across every *.meizuno.com app.
+      COOKIE_DOMAIN: .meizuno.com
       GIN_MODE: release
     labels:
       - traefik.enable=true
@@ -96,6 +99,7 @@ services:
     image: ghcr.io/meizuno/notes:latest
     environment:
       NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
+      NUXT_COOKIE_DOMAIN: .meizuno.com
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes?sslmode=disable
     labels:
       - traefik.enable=true
