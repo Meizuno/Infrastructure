@@ -187,7 +187,6 @@ services:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/chat
-      NUXT_MCP_API_KEY: ${MCP_API_KEY}
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
@@ -207,7 +206,6 @@ services:
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/money_manager
-      NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
       - traefik.http.routers.money-manager.rule=Host(`money.meizuno.com`)
@@ -225,7 +223,6 @@ services:
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book
-      NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
       - traefik.http.routers.recipes-book.rule=Host(`recipes.meizuno.com`)
@@ -243,7 +240,6 @@ services:
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes
-      NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
       - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
