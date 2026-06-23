@@ -18,7 +18,7 @@ services:
     image: ghcr.io/meizuno/authentication:latest
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/authentication
+      DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/authentication?sslmode=disable
       JWT_SECRET: ${JWT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -60,7 +60,7 @@ services:
     image: ghcr.io/meizuno/money-manager:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/money_manager
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/money_manager?sslmode=disable
     labels:
       - traefik.enable=true
       - traefik.http.routers.money-manager.rule=Host(`money.meizuno.com`)
@@ -77,7 +77,7 @@ services:
     image: ghcr.io/meizuno/recipes-book:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book?sslmode=disable
     labels:
       - traefik.enable=true
       - traefik.http.routers.recipes-book.rule=Host(`recipes.meizuno.com`)
@@ -94,7 +94,7 @@ services:
     image: ghcr.io/meizuno/notes:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes?sslmode=disable
     labels:
       - traefik.enable=true
       - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
