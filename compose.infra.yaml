@@ -1,0 +1,157 @@
+# Infrastructure: ingress, data, monitoring, logs. Single-instance services
+# (not rolled) — they keep fixed container_name; vector/victoria-logs REQUIRE
+# their exact names for vector.yaml's exclude_containers.
+# Assembled into the `meizuno` project via compose.yaml (include:).
+
+services:
+  # ── Ingress ────────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      # Dashboard at traefik.meizuno.com, protected by basic auth
+      - traefik.http.routers.dashboard.rule=Host(`traefik.meizuno.com`)
+      - traefik.http.routers.dashboard.entrypoints=web
+      - traefik.http.routers.dashboard.service=api@internal
+      - traefik.http.routers.dashboard.middlewares=dashboard-auth
+      - traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks: [edge]
+    depends_on: [traefik]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
+  # ── Data ─────────────────────────────────────────────────────────────────-─
+  postgres:
+    image: postgres:18.4-bookworm
+    container_name: postgres
+    restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=768MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=128MB
+      -c effective_cache_size=2GB
+      -c max_connections=100
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_SUPERUSER}
+      # consumed by ./postgres/init on a FRESH volume to create the app login role + DBs
+      WEB_DB_USER: ${WEB_DB_USER}
+      WEB_DB_PASSWORD: ${WEB_DB_PASSWORD}
+    volumes:
+      # PG18 stores data at $PGDATA=/var/lib/postgresql/18/docker and declares
+      # the VOLUME at /var/lib/postgresql — mount there, NOT at .../data.
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 3g
+
+  # ── Monitoring ───────────────────────────────────────────────────────────--─
+  kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: always
+    environment:
+      TZ: ${TZ:-Europe/Prague}
+    volumes:
+      - kuma-data:/app/data
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kuma.rule=Host(`status.meizuno.com`)
+      - traefik.http.routers.kuma.entrypoints=web
+      - traefik.http.services.kuma.loadbalancer.server.port=3001
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  # ── Observability (centralized logs) ────────────────────────────────────────
+  victoria-logs:
+    image: victoriametrics/victoria-logs:v1.51.0
+    container_name: victoria-logs
+    restart: unless-stopped
+    command:
+      - -storageDataPath=/vlogs
+      - -retentionPeriod=30d        # storage-level rotation
+    volumes:
+      - vlogs-data:/vlogs
+    networks: [logs, edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.logs.rule=Host(`logs.meizuno.com`)
+      - traefik.http.routers.logs.entrypoints=web
+      - traefik.http.routers.logs.service=logs
+      - traefik.http.routers.logs.middlewares=logs-auth
+      - traefik.http.services.logs.loadbalancer.server.port=9428
+      - traefik.http.middlewares.logs-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  vector:
+    image: timberio/vector:0.56.0-alpine
+    container_name: vector
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/vector.yaml:/etc/vector/vector.yaml:ro
+    networks: [logs]
+    depends_on: [victoria-logs]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
+  logs:
+    name: meizuno_logs
+
+volumes:
+  postgres-data:
+    name: meizuno_postgres-data
+  kuma-data:
+    name: meizuno_kuma-data
+  vlogs-data:
+    name: meizuno_vlogs-data

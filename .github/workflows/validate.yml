@@ -3,12 +3,12 @@ name: validate
 on:
   push:
     paths:
-      - "compose.yaml"
+      - "compose*.yaml"
       - ".env.example"
       - ".github/workflows/validate.yml"
   pull_request:
     paths:
-      - "compose.yaml"
+      - "compose*.yaml"
       - ".env.example"
       - ".github/workflows/validate.yml"
 

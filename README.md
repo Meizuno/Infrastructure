@@ -15,6 +15,11 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
 
 ## How it works
 
+- **Two files, one project.** `compose.yaml` is a thin `include:` of
+  `compose.infra.yaml` (ingress, data, monitoring, logs) and
+  `compose.apps.yaml` (the application services). They merge into a single
+  `meizuno` project, so `docker compose` / `docker rollout` / `deploy.sh` all
+  operate on the whole stack — the split is for readability, not isolation.
 - **No host ports.** `cloudflared` reaches Traefik over the `edge` docker
   network, so nothing is published on the VM. The only way in is the tunnel.
 - **Traefik** is the single reverse proxy. Each app declares its hostname in
