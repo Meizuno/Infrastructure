@@ -1,0 +1,24 @@
+name: validate
+
+on:
+  push:
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/validate.yml"
+  pull_request:
+    paths:
+      - "compose.yaml"
+      - ".env.example"
+      - ".github/workflows/validate.yml"
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose.yaml
+        # docker compose is preinstalled on ubuntu runners.
+        # --env-file resolves ${...} interpolation; -q validates without output.
+        run: docker compose --env-file .env.example config -q
