@@ -5,6 +5,13 @@
 entryPoints:
   web:
     address: ":80"
+    # Trust the X-Forwarded-* headers cloudflared sets (notably
+    # X-Forwarded-Proto: https). Without this Traefik overwrites them with its
+    # own entrypoint scheme (http), so apps that trust X-Forwarded-Proto build
+    # http:// URLs. Safe here: the only ingress is cloudflared over the internal
+    # docker network — nothing is published on the host.
+    forwardedHeaders:
+      insecure: true
 
 providers:
   docker:
