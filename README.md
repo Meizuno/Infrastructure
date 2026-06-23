@@ -1,4 +1,4 @@
-# meizuno-stack
+# Infrastructure
 
 A single Docker Compose stack that runs the whole **meizuno** ecosystem behind
 **Traefik** and a **Cloudflare Tunnel**, with **zero-downtime deploys** at one
