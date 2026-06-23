@@ -4,7 +4,7 @@ name: meizuno
 # Unified stack for the meizuno ecosystem.
 #
 #   Internet → Cloudflare edge → cloudflared (token) → traefik:80 → app (by Host)
-#                                                                  ↘ postgres / whisper (internal)
+#                                                                  ↘ postgres (internal)
 #
 # Nothing is published to the host: cloudflared reaches Traefik over the `edge`
 # docker network. Traefik routes by Host header using the labels on each app.
@@ -95,25 +95,6 @@ services:
           cpus: "1.5"
           memory: 3g
 
-  whisper:
-    image: ghcr.io/meizuno/whisper-service:latest
-    container_name: whisper
-    restart: unless-stopped
-    environment:
-      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
-      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
-      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
-      WHISPER_BEAM_SIZE: ${WHISPER_BEAM_SIZE:-5}
-      WHISPER_VAD: ${WHISPER_VAD:-true}
-    volumes:
-      - whisper-cache:/cache
-    networks: [internal]
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 1.2g
-
   kuma:
     image: louislam/uptime-kuma:2
     container_name: uptime-kuma
@@ -166,7 +147,6 @@ services:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/chat
       NUXT_MCP_API_KEY: ${MCP_API_KEY}
-      NUXT_WHISPER_URL: http://whisper:8000
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
@@ -242,5 +222,4 @@ networks:
 
 volumes:
   postgres-data:
-  whisper-cache:
   kuma-data:

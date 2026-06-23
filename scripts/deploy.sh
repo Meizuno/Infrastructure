@@ -5,14 +5,14 @@
 #   ./scripts/deploy.sh ai-chat      # roll out a single service
 #   ./scripts/deploy.sh notes ai-chat
 #
-# Infra (traefik, cloudflared, postgres, whisper, kuma) is reconciled with a
+# Infra (traefik, cloudflared, postgres, kuma) is reconciled with a
 # plain `up -d` (no-op when unchanged). App services are updated one at a time
 # with `docker rollout`, which starts a second replica, waits for it to become
 # healthy, then removes the old one — Traefik shifts traffic automatically.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-INFRA="traefik cloudflared postgres whisper kuma"
+INFRA="traefik cloudflared postgres kuma"
 ALL_APPS="authentication ai-chat money-manager recipes-book notes"
 
 if ! docker rollout --help >/dev/null 2>&1; then

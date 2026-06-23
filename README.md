@@ -10,7 +10,7 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
             (everything over the docker network — nothing on the host)  ├─→ recipes-book
                                                                         ├─→ notes
                                                                         └─→ authentication
-                                                          internal only: postgres · whisper
+                                                          internal only: postgres
 ```
 
 ## How it works
@@ -23,7 +23,7 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
 - **TLS** is terminated by Cloudflare. Traefik speaks plain HTTP on `:80`; there
   is no ACME/Let's Encrypt to manage.
 - **Two networks:** `edge` (cloudflared ↔ traefik ↔ apps) and `internal`
-  (apps ↔ postgres/whisper). Postgres and Whisper are never reachable from edge.
+  (apps ↔ postgres). Postgres is never reachable from edge.
 - **One shared Postgres** with an `admin` superuser and a `web` role that owns
   every app database (`authentication`, `chat`, `money_manager`, `recipes_book`,
   `notes`).
@@ -38,7 +38,7 @@ removes the old one. Traefik load-balances across both during the swap.
 
 This is why the five app services **must not** set `container_name:` or `ports:`
 — both would break transient scaling. Infra services (traefik, cloudflared,
-postgres, whisper, kuma) are not rolled and keep their fixed names.
+postgres, kuma) are not rolled and keep their fixed names.
 
 > Requires each app image to define a `HEALTHCHECK` (the meizuno images do) so
 > rollout knows when the new container is ready.
@@ -111,5 +111,4 @@ docker compose pull ai-chat && docker rollout ai-chat
   script is a no-op (and idempotent if it does run).
 - App schema migrations still run from each app's own image/entrypoint
   (e.g. Notes runs `prisma migrate deploy` on start).
-- Whisper and Kuma keep `container_name:` and are not rolled; a Whisper restart
-  briefly interrupts voice transcription only.
+- Kuma keeps `container_name:` and is not rolled.
