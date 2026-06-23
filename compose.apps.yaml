@@ -89,7 +89,11 @@ services:
     <<: *app-defaults
     image: ghcr.io/meizuno/recipes-book:latest
     environment:
-      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
+      # Split auth URLs: server-to-server stays internal (no hairpin), the
+      # browser OAuth flow uses the public auth origin.
+      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
+      NUXT_COOKIE_DOMAIN: .meizuno.com
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book?sslmode=disable
     labels:
       - traefik.enable=true
