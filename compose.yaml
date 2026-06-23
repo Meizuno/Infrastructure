@@ -77,7 +77,8 @@ services:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
       POSTGRES_DB: ${POSTGRES_SUPERUSER}
-      # consumed by ./postgres/init on a FRESH volume to create the `web` role + app DBs
+      # consumed by ./postgres/init on a FRESH volume to create the app login role + DBs
+      WEB_DB_USER: ${WEB_DB_USER}
       WEB_DB_PASSWORD: ${WEB_DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -161,7 +162,7 @@ services:
     image: ghcr.io/meizuno/authentication:latest
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/authentication
+      DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/authentication
       JWT_SECRET: ${JWT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -185,7 +186,7 @@ services:
     environment:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/chat
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/chat
       NUXT_MCP_API_KEY: ${MCP_API_KEY}
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
@@ -205,7 +206,7 @@ services:
     image: ghcr.io/meizuno/money-manager:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/money_manager
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/money_manager
       NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
@@ -223,7 +224,7 @@ services:
     image: ghcr.io/meizuno/recipes-book:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/recipes_book
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book
       NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
@@ -241,7 +242,7 @@ services:
     image: ghcr.io/meizuno/notes:latest
     environment:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://web:${WEB_DB_PASSWORD}@postgres:5432/notes
+      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes
       NUXT_MCP_API_KEY: ${MCP_API_KEY}
     labels:
       - traefik.enable=true
