@@ -5,14 +5,14 @@
 #   ./scripts/deploy.sh ai-chat      # roll out a single service
 #   ./scripts/deploy.sh notes ai-chat
 #
-# Infra (traefik, cloudflared, postgres, kuma) is reconciled with a
-# plain `up -d` (no-op when unchanged). App services are updated one at a time
+# Infra (traefik, cloudflared, postgres, kuma, victoria-logs, vector) is
+# reconciled with a plain `up -d`. App services are updated one at a time
 # with `docker rollout`, which starts a second replica, waits for it to become
 # healthy, then removes the old one — Traefik shifts traffic automatically.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-INFRA="traefik cloudflared postgres kuma"
+INFRA="traefik cloudflared postgres kuma victoria-logs vector"
 ALL_APPS="authentication ai-chat money-manager recipes-book notes"
 
 if ! docker rollout --help >/dev/null 2>&1; then

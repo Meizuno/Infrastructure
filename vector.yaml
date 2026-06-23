@@ -1,0 +1,25 @@
+sources:
+  docker:
+    type: docker_logs
+    exclude_containers: [vector, victoria-logs]   # don't loop our own logs
+
+transforms:
+  meta:
+    type: remap
+    inputs: [docker]
+    source: |
+      .service = .container_name
+
+sinks:
+  vlogs:
+    type: elasticsearch
+    inputs: [meta]
+    endpoints: ["http://victoria-logs:9428/insert/elasticsearch/"]
+    mode: bulk
+    api_version: v8
+    healthcheck:
+      enabled: false
+    query:
+      _msg_field: message
+      _time_field: timestamp
+      _stream_fields: host,container_name,service

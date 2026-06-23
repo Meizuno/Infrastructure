@@ -22,8 +22,12 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
   the Cloudflare dashboard.
 - **TLS** is terminated by Cloudflare. Traefik speaks plain HTTP on `:80`; there
   is no ACME/Let's Encrypt to manage.
-- **Two networks:** `edge` (cloudflared ↔ traefik ↔ apps) and `internal`
-  (apps ↔ postgres). Postgres is never reachable from edge.
+- **Three networks:** `edge` (cloudflared ↔ traefik ↔ apps), `internal`
+  (apps ↔ postgres, never reachable from edge), and `logs` (vector ↔
+  victoria-logs).
+- **Centralized logs.** Vector tails every container via the Docker socket and
+  ships to VictoriaLogs (30-day retention). The log UI is at
+  `logs.meizuno.com` behind the same basic-auth as the Traefik dashboard.
 - **One shared Postgres** with an `admin` superuser and a `web` role that owns
   every app database (`authentication`, `chat`, `money_manager`, `recipes_book`,
   `notes`).
@@ -38,7 +42,9 @@ removes the old one. Traefik load-balances across both during the swap.
 
 This is why the five app services **must not** set `container_name:` or `ports:`
 — both would break transient scaling. Infra services (traefik, cloudflared,
-postgres, kuma) are not rolled and keep their fixed names.
+postgres, kuma, victoria-logs, vector) are not rolled and keep their fixed
+names — Vector relies on the exact `vector`/`victoria-logs` names to exclude its
+own logs.
 
 > Requires each app image to define a `HEALTHCHECK` (the meizuno images do) so
 > rollout knows when the new container is ready.
@@ -79,6 +85,7 @@ network by service name):
 | `auth.meizuno.com`     | `http://traefik:80`  |
 | `status.meizuno.com`   | `http://traefik:80`  |
 | `traefik.meizuno.com`  | `http://traefik:80`  |
+| `logs.meizuno.com`     | `http://traefik:80`  |
 
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
