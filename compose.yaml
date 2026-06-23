@@ -147,7 +147,7 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./vector.yaml:/etc/vector/vector.yaml:ro
+      - ./config/vector.yaml:/etc/vector/vector.yaml:ro
     networks: [logs]
     depends_on: [victoria-logs]
     deploy:
