@@ -29,8 +29,8 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
   ships to VictoriaLogs (30-day retention). The log UI is at
   `logs.meizuno.com` behind the same basic-auth as the Traefik dashboard.
 - **One shared Postgres** with an `admin` superuser and a `web` role that owns
-  every app database (`authentication`, `chat`, `money_manager`, `recipes_book`,
-  `notes`).
+  every app database (`authentication`, `money_manager`, `recipes_book`,
+  `notes`). ai-chat is stateless and owns no database.
 
 ## Zero-downtime with one replica
 

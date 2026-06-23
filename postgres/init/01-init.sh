@@ -14,7 +14,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_USER" <<
   \$\$;
 EOSQL
 
-for db in authentication chat money_manager recipes_book notes; do
+for db in authentication money_manager recipes_book notes; do
   if ! psql -tA --username "$POSTGRES_USER" --dbname "$POSTGRES_USER" \
         -c "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1; then
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_USER" \

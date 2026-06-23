@@ -186,7 +186,6 @@ services:
     environment:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/chat
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
