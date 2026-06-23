@@ -41,7 +41,7 @@ services:
     image: ghcr.io/meizuno/ai-chat:latest
     environment:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
-      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
@@ -59,7 +59,7 @@ services:
     <<: *app-defaults
     image: ghcr.io/meizuno/money-manager:latest
     environment:
-      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/money_manager?sslmode=disable
     labels:
       - traefik.enable=true
@@ -76,7 +76,7 @@ services:
     <<: *app-defaults
     image: ghcr.io/meizuno/recipes-book:latest
     environment:
-      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/recipes_book?sslmode=disable
     labels:
       - traefik.enable=true
@@ -93,7 +93,7 @@ services:
     <<: *app-defaults
     image: ghcr.io/meizuno/notes:latest
     environment:
-      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
       NUXT_DATABASE_URL: postgres://${WEB_DB_USER}:${WEB_DB_PASSWORD}@postgres:5432/notes?sslmode=disable
     labels:
       - traefik.enable=true
