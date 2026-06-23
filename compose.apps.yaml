@@ -24,6 +24,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: https://auth.meizuno.com/google/callback
       ALLOWED_EMAILS: ${ALLOWED_EMAILS}
+      # Exact-match allow-list for each app's post-login redirect (open-redirect guard)
+      ALLOWED_REDIRECT_URLS: https://chat.meizuno.com/api/auth/callback,https://money.meizuno.com/api/auth/callback,https://recipes.meizuno.com/api/auth/callback,https://notes.meizuno.com/api/auth/callback
       GIN_MODE: release
     labels:
       - traefik.enable=true
