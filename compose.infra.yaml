@@ -6,13 +6,11 @@
 services:
   # ── Ingress ────────────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.3
+    # v3.6+ negotiates the Docker API version. Older Traefik defaulted to API
+    # 1.24, which Docker Engine 28+ rejects ("client version 1.24 is too old").
+    image: traefik:v3.7.5
     container_name: traefik
     restart: unless-stopped
-    environment:
-      # Docker Engine 28+ raised the min API version to 1.44 and rejects the
-      # client's stale 1.24 default — pin a compatible version explicitly.
-      DOCKER_API_VERSION: "1.44"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
