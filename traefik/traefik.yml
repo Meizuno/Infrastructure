@@ -1,0 +1,20 @@
+# Static configuration. TLS is terminated by Cloudflare at the edge, so Traefik
+# only speaks plaintext HTTP on :80 — cloudflared forwards to it over the docker
+# network. There is no :443 entrypoint and no ACME/Let's Encrypt here on purpose.
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  docker:
+    exposedByDefault: false   # only containers with `traefik.enable=true` are routed
+    network: meizuno_edge     # the network Traefik uses to reach backends
+
+api:
+  dashboard: true             # exposed via the dashboard router label (basic-auth)
+
+log:
+  level: INFO
+
+accessLog: {}

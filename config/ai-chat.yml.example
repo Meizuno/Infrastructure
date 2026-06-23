@@ -1,0 +1,24 @@
+# AI Chat runtime config (mounted read-only at /app/config.yml).
+# Copy to config/ai-chat.yml and adjust. See the AIChat repo for the full schema.
+
+botName: Meizuno
+welcomeMessage: How can I help you today?
+currency: USD
+
+systemPrompt: |
+  You are a helpful assistant with access to the user's notes, recipes and
+  finances through MCP tools. Be concise.
+
+# Pricing for token-usage display (USD per million tokens)
+pricing:
+  input: 2.5
+  output: 10
+
+# MCP servers the chat connects to. The shared key is sent as x-api-key.
+mcpServers:
+  - name: notes
+    url: http://notes:3000/api/mcp
+  - name: money-manager
+    url: http://money-manager:3000/api/mcp
+  - name: recipes-book
+    url: http://recipes-book:3000/api/mcp

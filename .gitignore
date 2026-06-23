@@ -1,0 +1,7 @@
+# Secrets & local config — never commit
+.env
+config/ai-chat.yml
+
+# OS / editor
+.DS_Store
+*.swp
