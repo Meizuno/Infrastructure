@@ -115,12 +115,12 @@ services:
     networks: [logs, edge]
     labels:
       - traefik.enable=true
+      # Access control is handled at the edge by Cloudflare Access (Zero Trust);
+      # VictoriaLogs has no built-in auth, so the tunnel + Access is the gate.
       - traefik.http.routers.logs.rule=Host(`logs.meizuno.com`)
       - traefik.http.routers.logs.entrypoints=web
       - traefik.http.routers.logs.service=logs
-      - traefik.http.routers.logs.middlewares=logs-auth
       - traefik.http.services.logs.loadbalancer.server.port=9428
-      - traefik.http.middlewares.logs-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
     deploy:
       resources:
         limits:
