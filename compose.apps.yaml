@@ -19,6 +19,13 @@ services:
     environment:
       PORT: 8080
       DATABASE_URL: postgres://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/authentication?sslmode=disable
+      # Access tokens are signed with EdDSA (asymmetric). The private key is
+      # mounted as a file secret (never an env value) and the public half is
+      # published at /.well-known/jwks.json. JWT_SECRET is kept ONLY to verify
+      # in-flight HS256 tokens during the cutover window — blank it in .env and
+      # redeploy once they have expired (≤15 min). See README → "Token signing".
+      JWT_SIGNING_ALG: EdDSA
+      JWT_PRIVATE_KEY_FILE: /run/secrets/jwt_private_key
       JWT_SECRET: ${JWT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -35,6 +42,8 @@ services:
       - traefik.http.routers.auth.rule=Host(`auth.meizuno.com`)
       - traefik.http.routers.auth.entrypoints=web
       - traefik.http.services.auth.loadbalancer.server.port=8080
+    secrets:
+      - jwt_private_key
     deploy:
       resources:
         limits:
@@ -129,3 +138,10 @@ networks:
     name: meizuno_edge
   internal:
     name: meizuno_internal
+
+# File-based secrets bind-mounted to /run/secrets/<name> in the target service.
+# The source files live on the host under secrets/ (gitignored) — generate the
+# signing key with scripts/gen-jwt-key.sh before the first `docker compose up`.
+secrets:
+  jwt_private_key:
+    file: ./secrets/jwt_private_key.pem

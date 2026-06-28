@@ -160,6 +160,40 @@ setup and periodically:
 ./scripts/verify-restore.sh
 ```
 
+## Token signing (EdDSA)
+
+The auth service signs access tokens with **EdDSA** (Ed25519, asymmetric). The
+**private** signing key lives only on the host as a file secret mounted into the
+`authentication` container — never an env value, never in `docker inspect`, never
+in git. The **public** half is published at `auth.meizuno.com/.well-known/jwks.json`.
+
+Consumers (notes, money-manager, recipes-book, ai-chat) **do not hold any signing
+key** — they validate every request against the auth service's `/validate`
+endpoint. So signing changes are an auth-service-only concern: no app changes, no
+app redeploys.
+
+**First-time setup:**
+```bash
+./scripts/gen-jwt-key.sh             # writes secrets/jwt_private_key.pem (0600)
+docker compose up -d authentication  # or ./scripts/deploy.sh authentication
+curl -s https://auth.meizuno.com/.well-known/jwks.json   # shows the public key
+```
+
+**Cutover from the legacy HS256 secret** (zero downtime; the auth service accepts
+both during the window because `JWT_SECRET` is still set):
+1. Generate the key and deploy with EdDSA (above). New tokens are EdDSA; the
+   in-flight HS256 access tokens (≤15 min TTL) still validate.
+2. Wait > 15 minutes — every HS256 access token has now expired. Refresh tokens
+   are opaque (DB-hashed), so they are unaffected.
+3. **Blank `JWT_SECRET=`** in `.env` and redeploy `authentication`. HS256 is now
+   rejected outright; only EdDSA is accepted. This also retires the old shared
+   secret (a de-facto signing-key rotation).
+
+**Rotating the signing key later:** delete `secrets/jwt_private_key.pem`, run
+`./scripts/gen-jwt-key.sh`, redeploy `authentication`. (Tokens signed with the
+old key stop validating immediately — for a seamless rotation the JWKS supports
+serving multiple keys; extend the signer to publish old+new before flipping.)
+
 ## Notes & caveats
 
 - **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).

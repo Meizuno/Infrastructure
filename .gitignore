@@ -1,6 +1,8 @@
 # Secrets & local config — never commit
 .env
 config/ai-chat.yml
+# Host-only secret files mounted into containers (JWT signing key, etc.)
+secrets/
 
 # OS / editor
 .DS_Store
