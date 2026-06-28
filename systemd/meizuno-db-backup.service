@@ -1,0 +1,10 @@
+[Unit]
+Description=meizuno Postgres -> Cloudflare R2 backup (pg_dumpall)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Adjust to your stack dir if different (must contain compose.yaml + .env).
+WorkingDirectory=/home/debian/servers/meizuno
+ExecStart=/home/debian/servers/meizuno/scripts/backup-db.sh

@@ -117,6 +117,39 @@ Images are tagged by commit SHA in GHCR. To roll back, pin the tag and roll out:
 docker compose pull ai-chat && docker rollout ai-chat
 ```
 
+## Backups (Postgres → Cloudflare R2)
+
+`scripts/backup-db.sh` runs `pg_dumpall` (roles + every database) inside the
+running `postgres` container, gzips it, and uploads it off-host to **Cloudflare
+R2** via a throwaway `amazon/aws-cli` container — no host packages, no DB
+password (local-socket trust inside the container).
+
+**Setup (once):**
+1. Create an R2 bucket and an R2 **API token** (Object Read & Write) → it gives
+   an Access Key ID / Secret Access Key and an endpoint
+   `https://<account-id>.r2.cloudflarestorage.com`.
+2. Fill `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+   (and optional `R2_PREFIX`) in `.env`.
+3. Install the daily timer:
+   ```bash
+   sudo cp systemd/meizuno-db-backup.{service,timer} /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now meizuno-db-backup.timer
+   systemctl list-timers meizuno-db-backup.timer     # confirm next run
+   ./scripts/backup-db.sh                             # one manual run to verify
+   ```
+   (Adjust `WorkingDirectory`/`ExecStart` paths in the unit if your stack dir
+   differs from `/home/debian/servers/meizuno`.)
+
+**Retention:** set an R2 **lifecycle rule** on the bucket (e.g. delete objects
+older than 30 days) — simpler and safer than pruning from the box.
+
+**Restore** (into a fresh/empty Postgres):
+```bash
+aws s3 cp s3://$R2_BUCKET/postgres/<file>.sql.gz - --endpoint-url $R2_ENDPOINT \
+  | gunzip | docker compose exec -T postgres psql -U admin -d postgres
+```
+
 ## Notes & caveats
 
 - **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).
