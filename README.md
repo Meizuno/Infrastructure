@@ -150,6 +150,16 @@ aws s3 cp s3://$R2_BUCKET/postgres/<file>.sql.gz - --endpoint-url $R2_ENDPOINT \
   | gunzip | docker compose exec -T postgres psql -U admin -d postgres
 ```
 
+**Verify the backup restores** (a backup you've never restored isn't a backup).
+`scripts/verify-restore.sh` pulls the newest dump (or a key you pass), restores
+it into a **throwaway** Postgres container (never the live DB), and prints the
+databases, roles, and per-DB table/row counts so you can eyeball that the data
+is really there. The temp container is removed on exit. Run it after first
+setup and periodically:
+```bash
+./scripts/verify-restore.sh
+```
+
 ## Notes & caveats
 
 - **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).
