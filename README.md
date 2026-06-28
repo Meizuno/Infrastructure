@@ -33,9 +33,12 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
 - **Centralized logs.** Vector tails every container via the Docker socket and
   ships to VictoriaLogs (30-day retention). The log UI is at
   `logs.meizuno.com` behind the same basic-auth as the Traefik dashboard.
-- **One shared Postgres** with an `admin` superuser and a `web` role that owns
-  every app database (`authentication`, `money_manager`, `recipes_book`,
-  `notes`). ai-chat is stateless and owns no database.
+- **One Postgres, one role per app.** Each app owns ONLY its own database and
+  can CONNECT only to it (`auth_user`→`authentication`, `money_user`→
+  `money_manager`, `recipes_user`→`recipes_book`, `notes_user`→`notes`), each
+  with its own password. A leaked app password is confined to that app's data —
+  it can't read, write, or drop another app's schema. ai-chat is stateless and
+  owns no database.
 
 ## Zero-downtime with one replica
 
@@ -118,9 +121,12 @@ docker compose pull ai-chat && docker rollout ai-chat
 
 - **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).
   Adjust the `Host(...)` labels and the dashboard table to match your real DNS.
-- `postgres/init/01-init.sh` runs **only on a fresh volume**. Migrating an
-  existing `postgres` volume? The `web` role and app DBs already exist — the
-  script is a no-op (and idempotent if it does run).
+- `postgres/init/01-init.sh` (per-app roles + databases) runs **only on a fresh
+  volume**. On an **existing** volume it won't run — to move off the old shared
+  `web` role to per-app roles, run `scripts/migrate-db-roles.sh` once (after
+  `git pull`, before redeploying the apps): it creates each role, transfers
+  database + object ownership, and confines CONNECT. Then redeploy the apps and
+  `DROP ROLE web`.
 - App schema migrations still run from each app's own image/entrypoint
   (e.g. Notes runs `prisma migrate deploy` on start).
 - Kuma keeps `container_name:` and is not rolled.

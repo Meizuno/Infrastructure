@@ -60,9 +60,12 @@ services:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
       POSTGRES_DB: ${POSTGRES_SUPERUSER}
-      # consumed by ./postgres/init on a FRESH volume to create the app login role + DBs
-      WEB_DB_USER: ${WEB_DB_USER}
-      WEB_DB_PASSWORD: ${WEB_DB_PASSWORD}
+      # consumed by ./postgres/init on a FRESH volume to create the per-app
+      # login roles + their databases (existing DBs: scripts/migrate-db-roles.sh)
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      MONEY_DB_PASSWORD: ${MONEY_DB_PASSWORD}
+      RECIPES_DB_PASSWORD: ${RECIPES_DB_PASSWORD}
+      NOTES_DB_PASSWORD: ${NOTES_DB_PASSWORD}
     volumes:
       # PG18 stores data at $PGDATA=/var/lib/postgresql/18/docker and declares
       # the VOLUME at /var/lib/postgresql — mount there, NOT at .../data.
