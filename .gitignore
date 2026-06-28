@@ -3,6 +3,11 @@
 config/ai-chat.yml
 # Host-only secret files mounted into containers (JWT signing key, etc.)
 secrets/
+# Private age keys, if ever generated inside the repo (the canonical location is
+# ~/.config/sops/age/keys.txt). secrets.enc.env (SOPS-encrypted) IS committed.
+*.agekey
+age-keys.txt
+keys.txt
 
 # OS / editor
 .DS_Store

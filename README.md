@@ -194,6 +194,35 @@ both during the window because `JWT_SECRET` is still set):
 old key stop validating immediately — for a seamless rotation the JWKS supports
 serving multiple keys; extend the signer to publish old+new before flipping.)
 
+## Secrets at rest (SOPS + age)
+
+Secrets can be kept **encrypted at rest** with [SOPS](https://github.com/getsops/sops)
++ [age], so the canonical secrets file is safe to commit and safe in host
+snapshots/backups — only values are encrypted, keys stay readable for diffs.
+
+- `secrets.enc.env` — canonical, **committed**, values encrypted.
+- `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
+  `deploy.sh` regenerates it from `secrets.enc.env` on every deploy.
+- The age **private** key (`~/.config/sops/age/keys.txt`) never leaves the host
+  and is the only thing that can decrypt. **Back it up** — losing it loses the
+  secrets.
+
+```bash
+# one-time: install sops + age, then
+./scripts/secrets.sh init       # make an age key, write .sops.yaml, encrypt .env
+git add secrets.enc.env .sops.yaml && git commit -m "chore: encrypt secrets"
+
+./scripts/secrets.sh edit       # change a secret (re-encrypts on save)
+./scripts/secrets.sh decrypt    # materialize .env by hand (deploy does this too)
+```
+
+Stronger variant (no plaintext `.env` on disk at all): wrap commands in
+`sops exec-env secrets.enc.env 'docker compose up -d'`. This needs the age key
+available non-interactively (`SOPS_AGE_KEY_FILE`) for the systemd backup unit,
+so the simpler 0600-`.env` flow above is the default.
+
+[age]: https://github.com/FiloSottile/age
+
 ## Notes & caveats
 
 - **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).

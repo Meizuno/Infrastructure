@@ -12,6 +12,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Secrets are SOPS-encrypted at rest (secrets.enc.env). Materialize the
+# gitignored .env that docker compose reads. No-op if SOPS isn't adopted yet.
+if [ -f secrets.enc.env ]; then
+  command -v sops >/dev/null 2>&1 || { echo "✗ secrets.enc.env present but sops is not installed — see scripts/secrets.sh" >&2; exit 1; }
+  ( umask 077; sops -d secrets.enc.env > .env ) && chmod 600 .env
+fi
+
 INFRA="traefik cloudflared postgres kuma victoria-logs vector"
 ALL_APPS="authentication ai-chat money-manager recipes-book notes"
 
