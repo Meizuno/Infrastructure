@@ -6,16 +6,25 @@
 # stray run can't silently rotate the signer out from under live sessions.
 #
 #   ./scripts/gen-jwt-key.sh            # create secrets/jwt_private_key.pem
-#   rm secrets/jwt_private_key.pem && ./scripts/gen-jwt-key.sh   # rotate
+#   ./scripts/rotate-jwt-key.sh         # seamless rotation (overlap by kid)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 out="secrets/jwt_private_key.pem"
+prev="secrets/jwt_previous_public_keys.pem"
 # secrets/ is 0700 so no OTHER host user can enter it...
 mkdir -p secrets && chmod 700 secrets
+
+# The previous-public-keys bundle must always exist (even empty): compose mounts
+# it into the container, and a missing source file fails `docker compose up`.
+# It is empty in steady state and filled briefly by rotate-jwt-key.sh.
+[ -f "$prev" ] || { : > "$prev"; }
+chmod 644 "$prev"
+
 if [ -f "$out" ]; then
   echo "$out already exists — refusing to overwrite." >&2
-  echo "To rotate the signing key: delete it, regenerate, then redeploy authentication." >&2
+  echo "To rotate the signing key, use ./scripts/rotate-jwt-key.sh." >&2
+  echo "(ensured $prev exists)"
   exit 0
 fi
 

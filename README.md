@@ -195,10 +195,19 @@ both during the window because `JWT_SECRET` is still set):
    rejected outright; only EdDSA is accepted. This also retires the old shared
    secret (a de-facto signing-key rotation).
 
-**Rotating the signing key later:** delete `secrets/jwt_private_key.pem`, run
-`./scripts/gen-jwt-key.sh`, redeploy `authentication`. (Tokens signed with the
-old key stop validating immediately — for a seamless rotation the JWKS supports
-serving multiple keys; extend the signer to publish old+new before flipping.)
+**Rotating the signing key (seamless, zero failed validations):** the auth
+service can verify against several keys by `kid`, so a rotation overlaps the old
+and new key for one access-token TTL:
+```bash
+./scripts/rotate-jwt-key.sh             # keep old public key, mint a new signer
+./scripts/deploy.sh authentication      # signs with the new key; still accepts old
+# … wait > 15 min (in-flight old-key tokens expire) …
+./scripts/rotate-jwt-key.sh --finalize  # drop the old key
+./scripts/deploy.sh authentication
+```
+During the overlap both public keys are published at `/.well-known/jwks.json`.
+The old **private** key is discarded immediately on rotation — only its public
+half is kept, and only to verify already-issued tokens.
 
 ## Secrets at rest (SOPS + age)
 
