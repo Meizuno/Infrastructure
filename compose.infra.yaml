@@ -17,12 +17,12 @@ services:
     networks: [edge]
     labels:
       - traefik.enable=true
-      # Dashboard at traefik.meizuno.com, protected by basic auth
+      # Dashboard. Access control is at the edge via Cloudflare Access (Zero
+      # Trust); Traefik has no dashboard auth of its own — the tunnel + Access
+      # is the gate (same as the logs UI).
       - traefik.http.routers.dashboard.rule=Host(`traefik.meizuno.com`)
       - traefik.http.routers.dashboard.entrypoints=web
       - traefik.http.routers.dashboard.service=api@internal
-      - traefik.http.routers.dashboard.middlewares=dashboard-auth
-      - traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
     deploy:
       resources:
         limits:
