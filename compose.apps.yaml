@@ -26,6 +26,9 @@ services:
       # redeploy once they have expired (≤15 min). See README → "Token signing".
       JWT_SIGNING_ALG: EdDSA
       JWT_PRIVATE_KEY_FILE: /run/secrets/jwt_private_key
+      # Verification-only previous public keys for a seamless key rotation overlap
+      # (empty in steady state; filled briefly by scripts/rotate-jwt-key.sh).
+      JWT_PREVIOUS_PUBLIC_KEYS_FILE: /run/secrets/jwt_previous_public_keys
       JWT_SECRET: ${JWT_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -46,6 +49,7 @@ services:
       - traefik.http.services.auth.loadbalancer.server.port=8080
     secrets:
       - jwt_private_key
+      - jwt_previous_public_keys
     deploy:
       resources:
         limits:
@@ -147,3 +151,7 @@ networks:
 secrets:
   jwt_private_key:
     file: ./secrets/jwt_private_key.pem
+  # Public keys (not secret) of just-retired signing keys, mounted for a rotation
+  # overlap. Empty in steady state; managed by scripts/rotate-jwt-key.sh.
+  jwt_previous_public_keys:
+    file: ./secrets/jwt_previous_public_keys.pem
