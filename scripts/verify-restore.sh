@@ -5,7 +5,7 @@
 # Safe to run anytime; the temp container is removed on exit.
 #
 #   ./scripts/verify-restore.sh
-#   ./scripts/verify-restore.sh postgres/meizuno-pgdumpall-20260628T033000Z.sql.gz
+#   ./scripts/verify-restore.sh postgres/meizuno-pgdumpall-20260628T033000Z.sql.gz.age
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,6 +18,10 @@ R2_PREFIX="${R2_PREFIX:-$(env_val R2_PREFIX)}"; R2_PREFIX="${R2_PREFIX:-postgres
 export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-$(env_val R2_ACCESS_KEY_ID)}"
 export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-$(env_val R2_SECRET_ACCESS_KEY)}"
 export AWS_DEFAULT_REGION=auto
+# Backups are age-encrypted; decrypt with the SOPS age key on the host.
+AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+command -v age >/dev/null 2>&1 || { echo "age not installed — needed to decrypt the backup" >&2; exit 1; }
+[ -f "$AGE_KEY_FILE" ] || { echo "age key not found at $AGE_KEY_FILE (set SOPS_AGE_KEY_FILE)" >&2; exit 1; }
 : "${R2_ENDPOINT:?missing R2_ENDPOINT in $ENV_FILE}"
 : "${R2_BUCKET:?missing R2_BUCKET in $ENV_FILE}"
 : "${AWS_ACCESS_KEY_ID:?missing R2_ACCESS_KEY_ID in $ENV_FILE}"
@@ -28,8 +32,8 @@ r2() { docker run --rm -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFA
 
 key="${1:-}"
 if [ -z "$key" ]; then
-  latest=$(r2 s3 ls "s3://${R2_BUCKET}/${R2_PREFIX}/" | awk '{print $NF}' | grep -E '\.sql\.gz$' | sort | tail -n1)
-  [ -n "$latest" ] || { echo "no .sql.gz under ${R2_PREFIX}/ in ${R2_BUCKET}" >&2; exit 1; }
+  latest=$(r2 s3 ls "s3://${R2_BUCKET}/${R2_PREFIX}/" | awk '{print $NF}' | grep -E '\.sql\.gz\.age$' | sort | tail -n1)
+  [ -n "$latest" ] || { echo "no .sql.gz.age under ${R2_PREFIX}/ in ${R2_BUCKET}" >&2; exit 1; }
   key="${R2_PREFIX}/${latest}"
 fi
 echo "Verifying restore of: ${key}"
@@ -49,8 +53,8 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "Restoring…"
-gunzip -c "$tmp" | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>/tmp/verify-restore.err || true
+echo "Restoring (age -d → gunzip → psql)…"
+age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>/tmp/verify-restore.err || true
 
 q() { docker exec "$name" psql -tAX -U postgres "$@"; }
 

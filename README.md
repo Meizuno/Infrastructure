@@ -119,9 +119,13 @@ docker compose pull ai-chat && docker rollout ai-chat
 ## Backups (Postgres → Cloudflare R2)
 
 `scripts/backup-db.sh` runs `pg_dumpall` (roles + every database) inside the
-running `postgres` container, gzips it, and uploads it off-host to **Cloudflare
-R2** via a throwaway `amazon/aws-cli` container — no host packages, no DB
-password (local-socket trust inside the container).
+running `postgres` container, gzips it, **encrypts it client-side with age**, and
+uploads it off-host to **Cloudflare R2** via a throwaway `amazon/aws-cli`
+container. R2 only ever stores ciphertext, so a leaked R2 token cannot read the
+data or the role password hashes. The dump is encrypted in the pipe — plaintext
+never touches disk. The age recipient defaults to the host SOPS age key (override
+with `BACKUP_AGE_RECIPIENT`). Set `KUMA_PUSH_URL` to an Uptime-Kuma push monitor
+and the run pings it up/down, so a failed **or never-run** backup alerts.
 
 **Setup (once):**
 1. Create an R2 bucket and an R2 **API token** (Object Read & Write) → it gives
@@ -143,11 +147,14 @@ password (local-socket trust inside the container).
 **Retention:** set an R2 **lifecycle rule** on the bucket (e.g. delete objects
 older than 30 days) — simpler and safer than pruning from the box.
 
-**Restore** (into a fresh/empty Postgres):
+**Restore** (into a fresh/empty Postgres) — decrypt with the age key first:
 ```bash
-aws s3 cp s3://$R2_BUCKET/postgres/<file>.sql.gz - --endpoint-url $R2_ENDPOINT \
-  | gunzip | docker compose exec -T postgres psql -U admin -d postgres
+aws s3 cp s3://$R2_BUCKET/postgres/<file>.sql.gz.age - --endpoint-url $R2_ENDPOINT \
+  | age -d -i ~/.config/sops/age/keys.txt | gunzip \
+  | docker compose exec -T postgres psql -U admin -d postgres
 ```
+(Losing the age key means the backups are unrecoverable — keep it backed up, the
+same key that decrypts `secrets.enc.env`.)
 
 **Verify the backup restores** (a backup you've never restored isn't a backup).
 `scripts/verify-restore.sh` pulls the newest dump (or a key you pass), restores
