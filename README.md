@@ -174,10 +174,16 @@ app redeploys.
 
 **First-time setup:**
 ```bash
-./scripts/gen-jwt-key.sh             # writes secrets/jwt_private_key.pem (0600)
+./scripts/gen-jwt-key.sh             # writes secrets/jwt_private_key.pem
 docker compose up -d authentication  # or ./scripts/deploy.sh authentication
 curl -s https://auth.meizuno.com/.well-known/jwks.json   # shows the public key
 ```
+
+> The key file is written `0644` inside a `0700 secrets/` dir on purpose: docker
+> bind-mounts it into the authentication container, which runs as a non-root uid,
+> and non-Swarm compose does not remap secret ownership — a `0600` file owned by
+> the host user gives the container "permission denied". The `0700` directory
+> still blocks other host users, so protection is equivalent.
 
 **Cutover from the legacy HS256 secret** (zero downtime; the auth service accepts
 both during the window because `JWT_SECRET` is still set):
