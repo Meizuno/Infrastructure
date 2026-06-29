@@ -36,11 +36,15 @@ if [ -z "$BACKUP_AGE_RECIPIENT" ] && [ -f "$AGE_KEY_FILE" ]; then
 fi
 
 # Optional Uptime-Kuma push monitor: pinged "up" on success, "down" on failure,
-# so a failed backup OR a timer that never fired both raise an alert.
+# so a failed backup OR a timer that never fired both raise an alert. Kuma sits
+# behind Cloudflare Access with no host port, so reach its push endpoint over the
+# docker network — KUMA_PUSH_URL is the INTERNAL form:
+#   http://uptime-kuma:3001/api/push/<token>
 KUMA_PUSH_URL="${KUMA_PUSH_URL:-$(env_val KUMA_PUSH_URL)}"
 ping_kuma() {
   [ -n "$KUMA_PUSH_URL" ] || return 0
-  curl -fsS --max-time 10 "${KUMA_PUSH_URL}?status=$1&msg=$2" >/dev/null 2>&1 || true
+  docker run --rm --network meizuno_edge curlimages/curl:latest \
+    -fsS --max-time 10 "${KUMA_PUSH_URL}?status=$1&msg=$2" >/dev/null 2>&1 || true
 }
 
 tmp=""
