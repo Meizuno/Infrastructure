@@ -30,11 +30,11 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: https://auth.meizuno.com/google/callback
-      ALLOWED_EMAILS: ${ALLOWED_EMAILS}
-      # Emails granted the admin role (manage runtime allow-lists at /admin).
+      # Allowed login emails and post-login redirect URLs are managed at runtime
+      # in the admin console (auth.meizuno.com/admin), not here. ALLOWED_EMAILS /
+      # ALLOWED_REDIRECT_URLS still work as an env break-glass floor if ever set.
+      # Emails granted the admin role (the bootstrap admin set; synced on login).
       ADMIN_EMAILS: ${ADMIN_EMAILS}
-      # Exact-match allow-list for each app's post-login redirect (open-redirect guard)
-      ALLOWED_REDIRECT_URLS: https://chat.meizuno.com/api/auth/callback,https://money.meizuno.com/api/auth/callback,https://recipes.meizuno.com/api/auth/callback,https://notes.meizuno.com/api/auth/callback
       # Issue the access/refresh cookies on the parent domain so one sign-in
       # is shared across every *.meizuno.com app.
       COOKIE_DOMAIN: .meizuno.com
