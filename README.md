@@ -32,7 +32,8 @@ Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:
   victoria-logs).
 - **Centralized logs.** Vector tails every container via the Docker socket and
   ships to VictoriaLogs (30-day retention). The log UI is at
-  `logs.meizuno.com` behind the same basic-auth as the Traefik dashboard.
+  `logs.meizuno.com` behind Cloudflare Access (Zero Trust), like the Traefik
+  dashboard — neither service has built-in auth, so the tunnel + Access is the gate.
 - **One Postgres, one role per app.** Each app owns ONLY its own database and
   can CONNECT only to it (`auth_user`→`authentication`, `money_user`→
   `money_manager`, `recipes_user`→`recipes_book`, `notes_user`→`notes`), each
@@ -72,11 +73,9 @@ docker compose up -d                 # infra + apps
 docker compose ps
 ```
 
-Generate the Traefik dashboard credentials for `TRAEFIK_DASHBOARD_AUTH`:
-
-```bash
-htpasswd -nb admin 'your-password'   # then double every $  →  $$  in .env
-```
+The Traefik dashboard and the logs UI have no built-in auth — gate them at the
+edge with **Cloudflare Access** (Zero Trust) on `traefik.<domain>` and
+`logs.<domain>`, the same way the other dashboards are protected.
 
 ### Cloudflare dashboard (token-mode tunnel)
 
