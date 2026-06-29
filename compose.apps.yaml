@@ -31,6 +31,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: https://auth.meizuno.com/google/callback
       ALLOWED_EMAILS: ${ALLOWED_EMAILS}
+      # Emails granted the admin role (manage runtime allow-lists at /admin).
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
       # Exact-match allow-list for each app's post-login redirect (open-redirect guard)
       ALLOWED_REDIRECT_URLS: https://chat.meizuno.com/api/auth/callback,https://money.meizuno.com/api/auth/callback,https://recipes.meizuno.com/api/auth/callback,https://notes.meizuno.com/api/auth/callback
       # Issue the access/refresh cookies on the parent domain so one sign-in
