@@ -139,6 +139,29 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  calories:
+    <<: *app-defaults
+    image: ghcr.io/meizuno/calories:latest
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgres://calories_user:${CALORIES_DB_PASSWORD}@postgres:5432/calories?sslmode=disable
+      # Server-to-server token validation stays internal (no hairpin); the browser
+      # OAuth login uses the public auth origin. Logout is proxied via /api/logout.
+      AUTH_VALIDATE_URL: http://authentication:8080/validate
+      AUTH_LOGIN_URL: https://auth.meizuno.com/google
+      AUTH_LOGOUT_URL: https://auth.meizuno.com/logout
+      COOKIE_DOMAIN: .meizuno.com
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.calories.rule=Host(`calories.meizuno.com`)
+      - traefik.http.routers.calories.entrypoints=web
+      - traefik.http.services.calories.loadbalancer.server.port=8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
 networks:
   edge:
     name: meizuno_edge
