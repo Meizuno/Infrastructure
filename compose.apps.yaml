@@ -148,6 +148,7 @@ services:
       # Server-to-server token validation stays internal (no hairpin); the browser
       # OAuth login uses the public auth origin. Logout is proxied via /api/logout.
       AUTH_VALIDATE_URL: http://authentication:8080/validate
+      AUTH_REFRESH_URL: http://authentication:8080/refresh
       AUTH_LOGIN_URL: https://auth.meizuno.com/google
       AUTH_LOGOUT_URL: https://auth.meizuno.com/logout
       COOKIE_DOMAIN: .meizuno.com
