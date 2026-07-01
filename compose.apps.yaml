@@ -12,10 +12,28 @@ x-app-defaults: &app-defaults
     postgres:
       condition: service_healthy
 
+# Nuxt apps share the same readiness probe (/api/health on :3000). A short
+# start_period/interval makes `healthy` reachable within a few seconds, so
+# `docker rollout` has a real health signal to wait on before cutting over.
+x-nuxt-defaults: &nuxt-defaults
+  <<: *app-defaults
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+    interval: 3s
+    timeout: 2s
+    retries: 3
+    start_period: 3s
+
 services:
   authentication:
     <<: *app-defaults
     image: ghcr.io/meizuno/authentication:latest
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 3s
     environment:
       PORT: 8080
       DATABASE_URL: postgres://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/authentication?sslmode=disable
@@ -47,6 +65,9 @@ services:
       - traefik.http.routers.auth.rule=Host(`auth.meizuno.com`)
       - traefik.http.routers.auth.entrypoints=web
       - traefik.http.services.auth.loadbalancer.server.port=8080
+      - traefik.http.services.auth.loadbalancer.healthcheck.path=/health
+      - traefik.http.services.auth.loadbalancer.healthcheck.interval=3s
+      - traefik.http.services.auth.loadbalancer.healthcheck.timeout=2s
     secrets:
       - jwt_private_key
       - jwt_previous_public_keys
@@ -57,7 +78,7 @@ services:
           memory: 128M
 
   ai-chat:
-    <<: *app-defaults
+    <<: *nuxt-defaults
     image: ghcr.io/meizuno/ai-chat:latest
     environment:
       NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -73,6 +94,9 @@ services:
       - traefik.http.routers.ai-chat.rule=Host(`chat.meizuno.com`)
       - traefik.http.routers.ai-chat.entrypoints=web
       - traefik.http.services.ai-chat.loadbalancer.server.port=3000
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.interval=3s
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.timeout=2s
     deploy:
       resources:
         limits:
@@ -80,7 +104,7 @@ services:
           memory: 512M
 
   money-manager:
-    <<: *app-defaults
+    <<: *nuxt-defaults
     image: ghcr.io/meizuno/money-manager:latest
     environment:
       # Split auth URLs: server-to-server stays internal (no hairpin), the
@@ -94,6 +118,9 @@ services:
       - traefik.http.routers.money-manager.rule=Host(`money.meizuno.com`)
       - traefik.http.routers.money-manager.entrypoints=web
       - traefik.http.services.money-manager.loadbalancer.server.port=3000
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.interval=3s
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.timeout=2s
     deploy:
       resources:
         limits:
@@ -101,7 +128,7 @@ services:
           memory: 512M
 
   recipes-book:
-    <<: *app-defaults
+    <<: *nuxt-defaults
     image: ghcr.io/meizuno/recipes-book:latest
     environment:
       # Split auth URLs: server-to-server stays internal (no hairpin), the
@@ -115,6 +142,9 @@ services:
       - traefik.http.routers.recipes-book.rule=Host(`recipes.meizuno.com`)
       - traefik.http.routers.recipes-book.entrypoints=web
       - traefik.http.services.recipes-book.loadbalancer.server.port=3000
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.interval=3s
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.timeout=2s
     deploy:
       resources:
         limits:
@@ -122,7 +152,7 @@ services:
           memory: 512M
 
   notes:
-    <<: *app-defaults
+    <<: *nuxt-defaults
     image: ghcr.io/meizuno/notes:latest
     environment:
       NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
@@ -133,6 +163,9 @@ services:
       - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
       - traefik.http.routers.notes.entrypoints=web
       - traefik.http.services.notes.loadbalancer.server.port=3000
+      - traefik.http.services.notes.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.notes.loadbalancer.healthcheck.interval=3s
+      - traefik.http.services.notes.loadbalancer.healthcheck.timeout=2s
     deploy:
       resources:
         limits:
