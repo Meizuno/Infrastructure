@@ -29,7 +29,8 @@ export AWS_DEFAULT_REGION=auto   # R2 ignores region but the CLI needs one set
 
 # age recipient (public key) the dump is encrypted to. Explicit via
 # BACKUP_AGE_RECIPIENT, else derived from the SOPS age key on the host.
-AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+# ${HOME:-…} keeps this from tripping `set -u` when systemd runs us without HOME.
+AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-${HOME:-/home/debian}/.config/sops/age/keys.txt}"
 BACKUP_AGE_RECIPIENT="${BACKUP_AGE_RECIPIENT:-$(env_val BACKUP_AGE_RECIPIENT)}"
 if [ -z "$BACKUP_AGE_RECIPIENT" ] && [ -f "$AGE_KEY_FILE" ]; then
   BACKUP_AGE_RECIPIENT="$(age-keygen -y "$AGE_KEY_FILE" 2>/dev/null || true)"

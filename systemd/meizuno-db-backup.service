@@ -7,4 +7,7 @@ Requires=docker.service
 Type=oneshot
 # Adjust to your stack dir if different (must contain compose.yaml + .env).
 WorkingDirectory=/home/debian/servers/meizuno
+# systemd doesn't set HOME for system services; the backup needs it to find the
+# SOPS age key (~/.config/sops/age/keys.txt) used to encrypt the dump.
+Environment=HOME=/home/debian
 ExecStart=/home/debian/servers/meizuno/scripts/backup-db.sh
