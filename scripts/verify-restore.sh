@@ -39,8 +39,10 @@ fi
 echo "Verifying restore of: ${key}"
 
 tmp="$(mktemp)"
+errlog="$(mktemp)"   # per-run, owned by us — a fixed /tmp path breaks when a
+                     # previous run (different user) left it non-writable
 name="pg-restore-test-$$"
-cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$tmp"; }
+cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$tmp" "$errlog"; }
 trap cleanup EXIT
 
 r2 s3 cp "s3://${R2_BUCKET}/${key}" - > "$tmp"
@@ -54,7 +56,7 @@ for _ in $(seq 1 30); do
 done
 
 echo "Restoring (age -d → gunzip → psql)…"
-age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>/tmp/verify-restore.err || true
+age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>"$errlog" || true
 
 q() { docker exec "$name" psql -tAX -U postgres "$@"; }
 
@@ -81,8 +83,8 @@ done
 
 # Count real psql errors, ignoring the benign "already exists" a pg_dumpall can
 # emit for pre-seeded roles/objects in a fresh cluster.
-errs=$(grep -iE 'error:' /tmp/verify-restore.err 2>/dev/null | grep -ivc 'already exists' || true)
-[ "${errs:-0}" -gt 0 ] && { echo "✗ ${errs} restore error(s) — see /tmp/verify-restore.err"; fail=1; }
+errs=$(grep -iE 'error:' "$errlog" 2>/dev/null | grep -ivc 'already exists' || true)
+[ "${errs:-0}" -gt 0 ] && { echo "✗ ${errs} restore error(s):"; grep -iE 'error:' "$errlog" | grep -iv 'already exists' | head -20; fail=1; }
 
 if [ "$fail" -eq 0 ]; then
   echo "PASS — backup restores cleanly (throwaway instance removed on exit)."
