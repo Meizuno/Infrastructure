@@ -49,10 +49,13 @@ ping_kuma() {
 }
 
 tmp=""
+stage="init"
 finish() {
   code=$?
   [ -n "$tmp" ] && rm -f "$tmp"
-  if [ "$code" -eq 0 ]; then ping_kuma up ok; else ping_kuma down "failed-${code}"; fi
+  # "up" only after the backup is uploaded AND verified restorable (see below),
+  # so a green Kuma monitor means recoverable, not merely "upload didn't error".
+  if [ "$code" -eq 0 ]; then ping_kuma up ok; else ping_kuma down "${stage}-failed-${code}"; fi
 }
 trap finish EXIT
 
@@ -67,6 +70,7 @@ ts=$(date -u +%Y%m%dT%H%M%SZ)
 key="${R2_PREFIX}/meizuno-pgdumpall-${ts}.sql.gz.age"
 tmp="$(mktemp)"
 
+stage="dump"
 echo "[$(date -u +%FT%TZ)] dumping all databases (gzip → age)…"
 # Local socket inside the container → trust auth, no password needed. pipefail
 # (set above) aborts if pg_dumpall fails mid-stream, so a broken dump is never
@@ -75,6 +79,7 @@ docker compose exec -T postgres pg_dumpall -U "$SU" | gzip | age -r "$BACKUP_AGE
 size=$(wc -c < "$tmp")
 [ "$size" -gt 0 ] || { echo "encrypted dump is empty — aborting (not uploading)" >&2; exit 1; }
 
+stage="upload"
 echo "[$(date -u +%FT%TZ)] uploading ${size} bytes (encrypted) → r2://${R2_BUCKET}/${key}"
 docker run --rm \
   -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
@@ -82,4 +87,23 @@ docker run --rm \
   amazon/aws-cli s3 cp /dump.sql.gz.age "s3://${R2_BUCKET}/${key}" \
   --endpoint-url "$R2_ENDPOINT"
 
-echo "[$(date -u +%FT%TZ)] backup complete: ${key}"
+# Prove the object we just wrote to R2 is actually THIS run's backup and is
+# restorable — not a stale/previous object left in place by a silent no-op or a
+# truncated upload. Two gates, both against the exact key we just wrote:
+#   (a) byte-for-byte: R2 ContentLength must equal the local artifact's size, so
+#       verify can never "pass" on an older object than this run produced;
+#   (b) round-trip restore into a THROWAWAY Postgres (never the live DB).
+# set -e aborts here on any mismatch/failure, so the Kuma ping reflects a fresh,
+# recoverable backup — not merely a successful upload.
+stage="verify"
+echo "[$(date -u +%FT%TZ)] checking R2 object is this run's backup (size match)…"
+remote_size=$(docker run --rm \
+  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
+  amazon/aws-cli s3api head-object --bucket "$R2_BUCKET" --key "$key" \
+  --endpoint-url "$R2_ENDPOINT" --query ContentLength --output text)
+[ "$remote_size" = "$size" ] || { echo "R2 object is ${remote_size} bytes but this run produced ${size} — not our backup, aborting" >&2; exit 1; }
+
+echo "[$(date -u +%FT%TZ)] verifying the uploaded backup restores…"
+"$(dirname "$0")/verify-restore.sh" "$key"
+
+echo "[$(date -u +%FT%TZ)] backup complete & verified restorable: ${key}"

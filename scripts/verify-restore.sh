@@ -19,7 +19,7 @@ export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-$(env_val R2_ACCESS_KEY_ID)}"
 export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-$(env_val R2_SECRET_ACCESS_KEY)}"
 export AWS_DEFAULT_REGION=auto
 # Backups are age-encrypted; decrypt with the SOPS age key on the host.
-AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-${HOME:-/home/debian}/.config/sops/age/keys.txt}"
 command -v age >/dev/null 2>&1 || { echo "age not installed — needed to decrypt the backup" >&2; exit 1; }
 [ -f "$AGE_KEY_FILE" ] || { echo "age key not found at $AGE_KEY_FILE (set SOPS_AGE_KEY_FILE)" >&2; exit 1; }
 : "${R2_ENDPOINT:?missing R2_ENDPOINT in $ENV_FILE}"
@@ -63,15 +63,30 @@ q -d postgres -c "SELECT datname FROM pg_database WHERE datname NOT IN ('templat
 echo "── login roles ──"
 q -d postgres -c "SELECT rolname FROM pg_roles WHERE rolcanlogin ORDER BY 1;"
 echo "── per-DB tables / rows ──"
-for db in authentication money_manager recipes_book notes; do
+# Verdict gate (exit code): FAIL if an expected DB is absent, a DB restored no
+# tables, or psql logged a non-benign error. Lets a caller (backup-db.sh) treat
+# a green Kuma ping as "backup uploaded AND provably restorable".
+fail=0
+for db in authentication money_manager recipes_book notes calories; do
   if q -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
     docker exec "$name" psql -qX -U postgres -d "$db" -c "ANALYZE;" >/dev/null 2>&1 || true
-    echo "  ${db}: $(q -d "$db" -c "SELECT count(*)||' tables, '||coalesce(sum(n_live_tup),0)||' rows' FROM pg_stat_user_tables;")"
+    tbls=$(q -d "$db" -c "SELECT count(*) FROM pg_stat_user_tables;")
+    rows=$(q -d "$db" -c "SELECT coalesce(sum(n_live_tup),0) FROM pg_stat_user_tables;")
+    echo "  ${db}: ${tbls:-0} tables, ${rows:-0} rows"
+    [ "${tbls:-0}" -gt 0 ] || { echo "    ✗ ${db} restored 0 tables"; fail=1; }
   else
-    echo "  ${db}: MISSING"
+    echo "  ${db}: MISSING"; fail=1
   fi
 done
 
-errs=$(grep -ciE 'error:' /tmp/verify-restore.err 2>/dev/null || true)
-echo "Restore errors logged: ${errs:-0} (details: /tmp/verify-restore.err)"
-echo "OK — throwaway instance removed on exit."
+# Count real psql errors, ignoring the benign "already exists" a pg_dumpall can
+# emit for pre-seeded roles/objects in a fresh cluster.
+errs=$(grep -iE 'error:' /tmp/verify-restore.err 2>/dev/null | grep -ivc 'already exists' || true)
+[ "${errs:-0}" -gt 0 ] && { echo "✗ ${errs} restore error(s) — see /tmp/verify-restore.err"; fail=1; }
+
+if [ "$fail" -eq 0 ]; then
+  echo "PASS — backup restores cleanly (throwaway instance removed on exit)."
+else
+  echo "FAIL — backup did NOT verify; treat this backup as suspect." >&2
+fi
+exit "$fail"
