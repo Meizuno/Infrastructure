@@ -4,14 +4,29 @@ A single Docker Compose stack that runs the whole **meizuno** ecosystem behind
 **Traefik** and a **Cloudflare Tunnel**, with **zero-downtime deploys** at one
 replica per service.
 
-```
-Internet ─→ Cloudflare edge (TLS) ─→ cloudflared (token) ─→ traefik:80 ─┬─→ ai-chat
-                                                                        ├─→ money-manager
-            (everything over the docker network — nothing on the host)  ├─→ recipes-book
-                                                                        ├─→ notes
-                                                                        └─→ authentication
-                                                          internal only: postgres
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="meizuno infrastructure — Cloudflare → Traefik → apps → Postgres, with observability, backups, delivery and secrets" width="100%">
+</p>
+
+## In action
+
+<sub>Recorded against the stack running locally.</sub>
+
+#### 📊 Status page — Uptime Kuma, all systems operational
+
+<a href="https://status.meizuno.com/status/meizuno"><img src="preview/status.gif" alt="Meizuno status page — live heartbeats for every service, all systems operational" width="100%"></a>
+
+<sub>Every service checked on a 20s interval. Live page: <a href="https://status.meizuno.com/status/meizuno">status.meizuno.com ↗</a></sub>
+
+#### 🔭 Centralized logs — Vector → VictoriaLogs, queried with LogsQL
+
+<img src="preview/logs.gif" alt="VictoriaLogs LogsQL query and per-service aggregation" width="100%">
+
+#### 💾 Backups — nightly pg_dumpall → age-encrypted → R2, restore auto-verified
+
+<img src="preview/backup.gif" alt="Backup and restore-verification pipeline" width="100%">
+
+> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/backup.mp4">backup</a>.</sub>
 
 ## How it works
 
