@@ -1,0 +1,82 @@
+/* Homepage custom.css — full modern "glass" restyle for the Meizuno dashboard.
+   Homepage inlines this automatically from the config dir (restart to pick up).
+   Tuned for the dark theme + sky accent set in settings.yaml.
+
+   Selectors (.service-card, .service-icon, .bookmark-card, #information-widgets)
+   are community-stable but NOT officially documented — a Homepage update could
+   shift the DOM; inspect + adjust if a rule stops biting. Rules are additive and
+   reversible (delete this file to revert). */
+
+:root {
+  --m-accent:      #38bdf8;                    /* sky-400              */
+  --m-panel:       rgba(255, 255, 255, 0.045); /* glass fill           */
+  --m-panel-hover: rgba(255, 255, 255, 0.08);
+  --m-border:      rgba(255, 255, 255, 0.09);
+  --m-border-hi:   rgba(56, 189, 248, 0.35);
+  --m-radius:      16px;
+  --m-ico-tint:    rgba(56, 189, 248, 0.16);
+  --m-ico-line:    rgba(56, 189, 248, 0.32);
+  --m-shadow:      0 1px 0 rgba(255,255,255,.04) inset, 0 10px 28px rgba(0,0,0,.28);
+}
+
+/* ── ambient backdrop ── */
+body {
+  background:
+    radial-gradient(1200px 620px at 12% -12%, rgba(56, 189, 248, 0.12), transparent 60%),
+    radial-gradient(1000px 520px at 100% 0%, rgba(45, 212, 191, 0.09), transparent 55%),
+    #070c16 !important;
+  background-attachment: fixed !important;
+}
+
+/* ── glass cards: services + bookmarks ── */
+.service-card,
+.bookmark-card {
+  background: var(--m-panel) !important;
+  border: 1px solid var(--m-border) !important;
+  border-radius: var(--m-radius) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--m-shadow);
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.service-card:hover,
+.bookmark-card:hover {
+  background: var(--m-panel-hover) !important;
+  border-color: var(--m-border-hi) !important;
+  transform: translateY(-2px);
+}
+
+/* ── icon in an accent-tinted rounded square ── */
+.service-icon {
+  background: var(--m-ico-tint);
+  border: 1px solid var(--m-ico-line);
+  border-radius: 12px;
+}
+
+/* ── info-widgets header → matching glass block ── */
+#information-widgets {
+  background: var(--m-panel) !important;
+  border: 1px solid var(--m-border) !important;
+  border-radius: var(--m-radius) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--m-shadow);
+  padding: 6px 10px !important;
+}
+
+/* ── group labels: modern uppercase eyebrow ── */
+h2.services-group-name,
+.services-group h2,
+.bookmark-group h2 {
+  text-transform: uppercase !important;
+  letter-spacing: 0.12em !important;
+  font-size: 0.72rem !important;
+  opacity: 0.72;
+}
+
+/* ── crisper focus + no motion when the OS asks ── */
+a:focus-visible { outline: 2px solid var(--m-accent); outline-offset: 3px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .service-card, .bookmark-card { transition: none; }
+  .service-card:hover, .bookmark-card:hover { transform: none; }
+}
