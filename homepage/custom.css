@@ -1,38 +1,39 @@
-/* Homepage custom.css — full modern "glass" restyle for the Meizuno dashboard.
-   Homepage inlines this automatically from the config dir (restart to pick up).
-   Tuned for the dark theme + sky accent set in settings.yaml.
+/* Homepage custom.css — modern "glass" restyle for the Meizuno dashboard.
+   Homepage inlines this from the config dir at /api/config/custom.css (restart
+   to pick up). Pairs with settings.yaml: theme dark + color slate (dark base),
+   sky as the accent below.
 
-   Selectors (.service-card, .service-icon, .bookmark-card, #information-widgets)
-   are community-stable but NOT officially documented — a Homepage update could
-   shift the DOM; inspect + adjust if a rule stops biting. Rules are additive and
-   reversible (delete this file to revert). */
+   Selectors are community-stable, not officially documented. #page_wrapper is
+   Homepage's real background wrapper (body's bg is painted over otherwise).
+   Additive + reversible — delete this file to revert. */
 
 :root {
-  --m-accent:      #38bdf8;                    /* sky-400              */
-  --m-panel:       rgba(255, 255, 255, 0.045); /* glass fill           */
-  --m-panel-hover: rgba(255, 255, 255, 0.08);
-  --m-border:      rgba(255, 255, 255, 0.09);
-  --m-border-hi:   rgba(56, 189, 248, 0.35);
-  --m-radius:      16px;
-  --m-ico-tint:    rgba(56, 189, 248, 0.16);
-  --m-ico-line:    rgba(56, 189, 248, 0.32);
-  --m-shadow:      0 1px 0 rgba(255,255,255,.04) inset, 0 10px 28px rgba(0,0,0,.28);
+  --m-accent:  #38bdf8;                    /* sky-400 accent          */
+  --m-panel:   rgba(255, 255, 255, 0.05);  /* glass fill              */
+  --m-panelH:  rgba(255, 255, 255, 0.09);  /* hover                   */
+  --m-bd:      rgba(255, 255, 255, 0.10);  /* card border             */
+  --m-bdH:     rgba(56, 189, 248, 0.38);   /* hover border            */
+  --m-radius:  16px;
+  --m-tint:    rgba(56, 189, 248, 0.16);   /* icon square backing     */
+  --m-tintL:   rgba(56, 189, 248, 0.34);
+  --m-shadow:  0 1px 0 rgba(255,255,255,.04) inset, 0 10px 26px rgba(0,0,0,.30);
 }
 
-/* ── ambient backdrop ── */
-body {
+/* ── dark gradient backdrop (paint on the real wrapper, not just body) ── */
+body { background: #070c16 !important; }
+#page_wrapper {
   background:
-    radial-gradient(1200px 620px at 12% -12%, rgba(56, 189, 248, 0.12), transparent 60%),
-    radial-gradient(1000px 520px at 100% 0%, rgba(45, 212, 191, 0.09), transparent 55%),
+    radial-gradient(1150px 600px at 12% -12%, rgba(56, 189, 248, 0.13), transparent 60%),
+    radial-gradient(950px 500px at 100% 0%, rgba(45, 212, 191, 0.10), transparent 55%),
     #070c16 !important;
   background-attachment: fixed !important;
 }
 
-/* ── glass cards: services + bookmarks ── */
+/* ── glass cards: services + footer bookmarks ── */
 .service-card,
 .bookmark-card {
   background: var(--m-panel) !important;
-  border: 1px solid var(--m-border) !important;
+  border: 1px solid var(--m-bd) !important;
   border-radius: var(--m-radius) !important;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -41,27 +42,28 @@ body {
 }
 .service-card:hover,
 .bookmark-card:hover {
-  background: var(--m-panel-hover) !important;
-  border-color: var(--m-border-hi) !important;
+  background: var(--m-panelH) !important;
+  border-color: var(--m-bdH) !important;
   transform: translateY(-2px);
 }
 
-/* ── icon in an accent-tinted rounded square ── */
+/* ── service icon in an accent-tinted rounded square ── */
 .service-icon {
-  background: var(--m-ico-tint);
-  border: 1px solid var(--m-ico-line);
-  border-radius: 12px;
+  background: var(--m-tint);
+  border: 1px solid var(--m-tintL);
+  border-radius: 11px;
+  padding: 4px;
 }
 
 /* ── info-widgets header → matching glass block ── */
 #information-widgets {
   background: var(--m-panel) !important;
-  border: 1px solid var(--m-border) !important;
+  border: 1px solid var(--m-bd) !important;
   border-radius: var(--m-radius) !important;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: var(--m-shadow);
-  padding: 6px 10px !important;
+  padding: 8px 12px !important;
 }
 
 /* ── group labels: modern uppercase eyebrow ── */
@@ -74,7 +76,7 @@ h2.services-group-name,
   opacity: 0.72;
 }
 
-/* ── crisper focus + no motion when the OS asks ── */
+/* ── polish ── */
 a:focus-visible { outline: 2px solid var(--m-accent); outline-offset: 3px; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) {
   .service-card, .bookmark-card { transition: none; }

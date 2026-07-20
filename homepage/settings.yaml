@@ -1,7 +1,7 @@
 # Homepage settings — https://gethomepage.dev/configs/settings/
 title: Meizuno
 theme: dark
-color: sky
+color: slate
 headerStyle: boxedWidgets
 statusStyle: dot
 

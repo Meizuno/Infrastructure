@@ -2,35 +2,44 @@
 # Apps roll (docker rollout), so no stable container_name → use siteMonitor
 # (up/down + latency). Infra services have fixed container_names → show live
 # CPU/RAM via the docker integration (see docker.yaml).
+# Icons: mdi-* (monochrome, themed) for the apps; real logos (dashboard-icons)
+# for the infra tools.
 
 - Apps:
     - AI Chat:
+        icon: si-openai
         href: https://chat.meizuno.com
         description: LLM chat with MCP tools
         siteMonitor: https://chat.meizuno.com
     - Notes:
+        icon: mdi-notebook-outline
         href: https://notes.meizuno.com
         description: Markdown notes + graph
         siteMonitor: https://notes.meizuno.com
     - Money Manager:
+        icon: mdi-wallet-outline
         href: https://money.meizuno.com
         description: Personal finance
         siteMonitor: https://money.meizuno.com
     - Recipes:
+        icon: mdi-silverware-fork-knife
         href: https://recipes.meizuno.com
         description: Recipe book
         siteMonitor: https://recipes.meizuno.com
     - Calories:
+        icon: mdi-food-apple-outline
         href: https://calories.meizuno.com
         description: Calorie & macro diary
         siteMonitor: https://calories.meizuno.com
     - Authentication:
+        icon: mdi-shield-key-outline
         href: https://auth.meizuno.com
         description: SSO / OAuth
         siteMonitor: https://auth.meizuno.com
 
 - Infrastructure:
     - Status:
+        icon: uptime-kuma.png
         href: https://status.meizuno.com
         description: Uptime Kuma
         widget:
@@ -38,20 +47,24 @@
           url: http://uptime-kuma:3001
           slug: meizuno
     - Metrics:
+        icon: mdi-chart-areaspline
         href: https://beszel.meizuno.com
         description: Beszel — CPU / RAM / disk
         server: my-docker
         container: beszel
     - Logs:
+        icon: mdi-text-box-search-outline
         href: https://logs.meizuno.com
         description: VictoriaLogs
         server: my-docker
         container: victoria-logs
     - Database:
+        icon: postgresql.png
         description: PostgreSQL
         server: my-docker
         container: postgres
     - Proxy:
+        icon: traefik.png
         href: https://traefik.meizuno.com
         description: Traefik
         server: my-docker
