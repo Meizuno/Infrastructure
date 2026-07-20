@@ -1,0 +1,58 @@
+# Homepage services — https://gethomepage.dev/configs/services/
+# Apps roll (docker rollout), so no stable container_name → use siteMonitor
+# (up/down + latency). Infra services have fixed container_names → show live
+# CPU/RAM via the docker integration (see docker.yaml).
+
+- Apps:
+    - AI Chat:
+        href: https://chat.meizuno.com
+        description: LLM chat with MCP tools
+        siteMonitor: https://chat.meizuno.com
+    - Notes:
+        href: https://notes.meizuno.com
+        description: Markdown notes + graph
+        siteMonitor: https://notes.meizuno.com
+    - Money Manager:
+        href: https://money.meizuno.com
+        description: Personal finance
+        siteMonitor: https://money.meizuno.com
+    - Recipes:
+        href: https://recipes.meizuno.com
+        description: Recipe book
+        siteMonitor: https://recipes.meizuno.com
+    - Calories:
+        href: https://calories.meizuno.com
+        description: Calorie & macro diary
+        siteMonitor: https://calories.meizuno.com
+    - Authentication:
+        href: https://auth.meizuno.com
+        description: SSO / OAuth
+        siteMonitor: https://auth.meizuno.com
+
+- Infrastructure:
+    - Status:
+        href: https://status.meizuno.com
+        description: Uptime Kuma
+        widget:
+          type: uptimekuma
+          url: http://uptime-kuma:3001
+          slug: meizuno
+    - Metrics:
+        href: https://beszel.meizuno.com
+        description: Beszel — CPU / RAM / disk
+        server: my-docker
+        container: beszel
+    - Logs:
+        href: https://logs.meizuno.com
+        description: VictoriaLogs
+        server: my-docker
+        container: victoria-logs
+    - Database:
+        description: PostgreSQL
+        server: my-docker
+        container: postgres
+    - Proxy:
+        href: https://traefik.meizuno.com
+        description: Traefik
+        server: my-docker
+        container: traefik

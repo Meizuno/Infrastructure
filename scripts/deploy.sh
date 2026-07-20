@@ -6,8 +6,8 @@
 #   ./scripts/deploy.sh notes ai-chat
 #
 # Infra (traefik, cloudflared, postgres, kuma, victoria-logs, vector, beszel +
-# beszel-agent) is reconciled with a plain `up -d`. App services are updated one
-# at a time
+# beszel-agent, homepage) is reconciled with a plain `up -d`. App services are
+# updated one at a time
 # with `docker rollout`, which starts a second replica, waits for it to become
 # healthy, then removes the old one — Traefik shifts traffic automatically.
 set -euo pipefail
@@ -20,7 +20,7 @@ if [ -f secrets.enc.env ]; then
   ( umask 077; sops -d secrets.enc.env > .env ) && chmod 600 .env
 fi
 
-INFRA="traefik cloudflared postgres kuma victoria-logs vector beszel beszel-agent"
+INFRA="traefik cloudflared postgres kuma victoria-logs vector beszel beszel-agent homepage"
 ALL_APPS="authentication ai-chat money-manager recipes-book notes"
 
 if ! docker rollout --help >/dev/null 2>&1; then

@@ -1,0 +1,10 @@
+# Homepage writes default config files (kubernetes.yaml, bookmarks.yaml,
+# custom.css/js, proxmox.yaml, …) and a logs/ dir into this folder on first run.
+# Track only the curated config; ignore everything Homepage generates so the
+# host's git stays clean.
+*
+!.gitignore
+!settings.yaml
+!widgets.yaml
+!services.yaml
+!docker.yaml

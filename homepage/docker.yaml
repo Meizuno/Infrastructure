@@ -1,0 +1,6 @@
+# Docker integration — https://gethomepage.dev/configs/docker/
+# Lets services with `server: my-docker` + `container: <name>` show live
+# status + CPU/RAM. Only the infra services have stable container_names;
+# the app services roll (docker rollout) so they use siteMonitor instead.
+my-docker:
+  socket: /var/run/docker.sock

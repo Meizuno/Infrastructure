@@ -1,0 +1,16 @@
+# Homepage info widgets — https://gethomepage.dev/widgets/
+# Host resources at the top of the page. `disk: /host` reads the read-only
+# bind-mount of the host root (see compose); cpu/memory/uptime come from the
+# shared kernel.
+- resources:
+    label: Host
+    cpu: true
+    memory: true
+    disk: /host
+    uptime: true
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: medium
+      timeStyle: short

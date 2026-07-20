@@ -109,6 +109,7 @@ network by service name):
 | `traefik.meizuno.com`  | `http://traefik:80`  |
 | `logs.meizuno.com`     | `http://traefik:80`  |
 | `beszel.meizuno.com`   | `http://traefik:80`  |
+| `home.meizuno.com`     | `http://traefik:80`  |
 
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
@@ -181,6 +182,28 @@ setup and periodically:
 ```bash
 ./scripts/verify-restore.sh
 ```
+
+## Dashboard (Homepage)
+
+`homepage` is the single landing page at `home.meizuno.com`: host CPU/RAM/disk
+(the `resources` widget), per-container CPU/RAM for the infra services, app
+up/down (siteMonitor), and an Uptime-Kuma summary — plus links to everything.
+Config is committed under [`homepage/`](homepage/) (`settings`, `widgets`,
+`services`, `docker`); Homepage's own default files + `logs/` are gitignored.
+
+Homepage has **no built-in auth**, so it must sit **behind Cloudflare Access**
+(Zero Trust), same as the Traefik/logs UIs — it lists internal services, don't
+expose it without Access.
+
+**Setup:**
+1. Add the `home.meizuno.com` tunnel hostname (→ `http://traefik:80`) and a
+   Cloudflare Access app in front of it.
+2. `docker compose up -d homepage` (infra service — `up -d`, not `deploy.sh`).
+
+Host disk uses the read-only `/:/host:ro` bind (`disk: /host` in `widgets.yaml`);
+per-container stats use the read-only docker socket (`docker.yaml`). App tiles
+use `siteMonitor` because app containers roll (no stable name); infra tiles use
+`server: my-docker` + their fixed `container_name`.
 
 ## Server metrics (Beszel)
 

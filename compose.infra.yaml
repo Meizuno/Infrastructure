@@ -161,6 +161,32 @@ services:
           cpus: "0.25"
           memory: 128M
 
+  # ── Dashboard (single pane: links + host resources + status) ────────────────
+  # Homepage — one page with host CPU/RAM/disk, per-container stats, app up/down
+  # and links. No built-in auth, so gate it at the edge with Cloudflare Access
+  # (like the Traefik/logs UIs). Config is committed under ./homepage.
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v1.13.2
+    container_name: homepage
+    restart: unless-stopped
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.meizuno.com   # required — the Host it's served on
+    volumes:
+      - ./homepage:/app/config                          # dashboard config (committed)
+      - /var/run/docker.sock:/var/run/docker.sock:ro    # per-container stats
+      - /:/host:ro                                        # host root for the disk widget
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.homepage.rule=Host(`home.meizuno.com`)
+      - traefik.http.routers.homepage.entrypoints=web
+      - traefik.http.services.homepage.loadbalancer.server.port=3000
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
   # ── Observability (centralized logs) ────────────────────────────────────────
   victoria-logs:
     image: victoriametrics/victoria-logs:v1.51.0
