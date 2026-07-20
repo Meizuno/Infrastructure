@@ -1,0 +1,16 @@
+# Footer links — https://gethomepage.dev/configs/bookmarks/
+# Bookmarks render below the services, so this sits at the bottom of the page.
+# Swap these for your exact profile URLs / inbox if you prefer.
+- Links:
+    - GitHub:
+        - abbr: GH
+          icon: github.png
+          href: https://github.com/Meizuno
+    - LinkedIn:
+        - abbr: IN
+          icon: linkedin.png
+          href: https://www.linkedin.com
+    - Gmail:
+        - abbr: GM
+          icon: gmail.png
+          href: https://mail.google.com
