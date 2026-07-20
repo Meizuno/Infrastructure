@@ -109,10 +109,10 @@ services:
           memory: 256M
 
   # ── Server metrics (CPU / RAM / disk) ───────────────────────────────────────
-  # Beszel hub (UI + store) plus its local agent. The agent talks to the hub over
-  # a shared unix socket (beszel-socket volume) — no network port is exposed. On
-  # first run: open the hub, create the admin account, "Add System" with host
-  # `/beszel_socket/beszel.sock`, then copy the shown KEY + TOKEN into secrets
+  # Beszel hub (UI + store) plus its local agent. The agent connects OUT to the
+  # hub over the edge network (HUB_URL) and authenticates with KEY + TOKEN. On
+  # first run: open the hub, create the admin account, "Add System" (host/port
+  # are irrelevant in this mode), then copy the shown KEY + TOKEN into secrets
   # (BESZEL_KEY / BESZEL_TOKEN) and redeploy the agent.
   beszel:
     image: henrygd/beszel:0.18.7
@@ -122,7 +122,6 @@ services:
       APP_URL: https://beszel.meizuno.com
     volumes:
       - beszel-data:/beszel_data
-      - beszel-socket:/beszel_socket
     networks: [edge]
     labels:
       - traefik.enable=true
@@ -142,17 +141,18 @@ services:
     image: henrygd/beszel-agent:0.18.7
     container_name: beszel-agent
     restart: unless-stopped
-    # Host networking for accurate host NIC stats; CPU/RAM come from the shared
-    # kernel, disk from the bind-mounted host root (FILESYSTEM=/host).
-    network_mode: host
+    # WebSocket mode: the agent dials the hub over the edge network (HUB_URL) and
+    # authenticates with KEY + TOKEN — no listening socket, no port, no socket
+    # permissions to align. CPU/RAM come from the shared kernel and disk from the
+    # /host bind; only host-NIC bandwidth stats differ vs network_mode: host.
     environment:
-      LISTEN: /beszel_socket/beszel.sock   # local unix socket the hub connects to
-      KEY: ${BESZEL_KEY}                    # hub public key — from the hub UI on first run
-      TOKEN: ${BESZEL_TOKEN}               # system token — from the hub UI on first run
-      FILESYSTEM: /host                     # statfs the bind-mounted host root for disk %
+      HUB_URL: http://beszel:8090            # internal — same edge network as the hub
+      KEY: ${BESZEL_KEY}                     # hub public key — from the hub UI on first run
+      TOKEN: ${BESZEL_TOKEN}                 # system token — from the hub UI on first run
+      FILESYSTEM: /host                      # statfs the bind-mounted host root for disk %
+    networks: [edge]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # per-container stats
-      - beszel-socket:/beszel_socket                    # shared with the hub
       - beszel-agent-data:/var/lib/beszel-agent
       - /:/host:ro                                       # host root, read-only, for disk usage
     deploy:
@@ -218,7 +218,5 @@ volumes:
     name: meizuno_vlogs-data
   beszel-data:
     name: meizuno_beszel-data
-  beszel-socket:
-    name: meizuno_beszel-socket
   beszel-agent-data:
     name: meizuno_beszel-agent-data

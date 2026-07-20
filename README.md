@@ -188,23 +188,33 @@ setup and periodically:
 host, plus per-container stats and network I/O. UI at `beszel.meizuno.com`
 (Beszel's own login; add a Cloudflare Access app in front for an extra gate).
 
-The agent talks to the hub over a **shared unix socket** (`beszel-socket`
-volume) — no network port is exposed. Host disk comes from a read-only
-bind-mount of `/` (`FILESYSTEM=/host`); CPU/RAM from the shared kernel;
-`network_mode: host` gives real NIC stats.
+The agent connects **out** to the hub over the `edge` network
+(`HUB_URL=http://beszel:8090`) and authenticates with `KEY` + `TOKEN` — no
+listening socket, no exposed port, no socket-permission alignment between the two
+containers. Host disk comes from a read-only bind-mount of `/`
+(`FILESYSTEM=/host`); CPU/RAM from the shared kernel. (The hub→agent unix-socket
+mode also works but needs the hub and agent to agree on socket ownership; the
+WebSocket mode avoids that entirely — the only trade-off is that bandwidth stats
+reflect the container's interface, not the host NIC.)
 
-**Setup (once):**
+**Setup (once):** beszel + beszel-agent are **infra** services — update them with
+`docker compose up -d <svc>`, NOT `deploy.sh <svc>` (that path runs `docker
+rollout`, which can't cleanly re-run a singleton).
 1. Add the `beszel.meizuno.com` hostname to the tunnel in the Cloudflare
    dashboard (→ `http://traefik:80`), like the other UIs.
-2. Deploy the hub: `./scripts/deploy.sh` (or `docker compose up -d beszel`).
-3. Open `beszel.meizuno.com`, create the admin account, then **Add System**:
-   set **Host / IP** to `/beszel_socket/beszel.sock` (leave the port blank) and
-   save. The dialog shows the agent's `KEY` and `TOKEN`.
-4. Put them in secrets — `BESZEL_KEY` (the hub's public key) and `BESZEL_TOKEN`
-   — via `./scripts/secrets.sh` (or `.env`).
-5. Deploy the agent: `./scripts/deploy.sh beszel-agent`. It connects over the
-   socket within ~15s and the system goes green. (Until `KEY`/`TOKEN` are set the
-   agent just sits unconnected — harmless.)
+2. Start the hub: `docker compose up -d beszel`.
+3. Open `beszel.meizuno.com`, create the admin account, then **Add System**
+   (the Host / Port fields are irrelevant in WebSocket mode — the agent dials
+   in). Save; the dialog shows the agent's `KEY` and `TOKEN`.
+4. Put them in the **encrypted** secrets (NOT `.env` directly — `deploy.sh`
+   regenerates `.env` from `secrets.enc.env` and would wipe a manual edit):
+   ```bash
+   ./scripts/secrets.sh edit        # add BESZEL_KEY + BESZEL_TOKEN (one line each, no quotes)
+   ./scripts/secrets.sh decrypt     # refresh .env from the encrypted source
+   ```
+5. Start the agent: `docker compose up -d beszel-agent`. It connects to the hub
+   within ~15s and the system goes green. (Until `KEY`/`TOKEN` are set it just
+   retries — harmless.)
 
 To also chart extra mounts (a data disk, etc.), add `EXTRA_FILESYSTEMS` to the
 agent with the matching mount bound in.
