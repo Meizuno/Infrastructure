@@ -105,6 +105,59 @@ services:
           cpus: "0.25"
           memory: 256M
 
+  # ── Server metrics (CPU / RAM / disk) ───────────────────────────────────────
+  # Beszel hub (UI + store) plus its local agent. The agent talks to the hub over
+  # a shared unix socket (beszel-socket volume) — no network port is exposed. On
+  # first run: open the hub, create the admin account, "Add System" with host
+  # `/beszel_socket/beszel.sock`, then copy the shown KEY + TOKEN into secrets
+  # (BESZEL_KEY / BESZEL_TOKEN) and redeploy the agent.
+  beszel:
+    image: henrygd/beszel:0.18.7
+    container_name: beszel
+    restart: unless-stopped
+    environment:
+      APP_URL: https://beszel.meizuno.com
+    volumes:
+      - beszel-data:/beszel_data
+      - beszel-socket:/beszel_socket
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      # Beszel has its own login (+ optional MFA), so it's served through the
+      # tunnel like the other UIs. Add a Cloudflare Access app in front for an
+      # extra edge gate if wanted.
+      - traefik.http.routers.beszel.rule=Host(`beszel.meizuno.com`)
+      - traefik.http.routers.beszel.entrypoints=web
+      - traefik.http.services.beszel.loadbalancer.server.port=8090
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  beszel-agent:
+    image: henrygd/beszel-agent:0.18.7
+    container_name: beszel-agent
+    restart: unless-stopped
+    # Host networking for accurate host NIC stats; CPU/RAM come from the shared
+    # kernel, disk from the bind-mounted host root (FILESYSTEM=/host).
+    network_mode: host
+    environment:
+      LISTEN: /beszel_socket/beszel.sock   # local unix socket the hub connects to
+      KEY: ${BESZEL_KEY}                    # hub public key — from the hub UI on first run
+      TOKEN: ${BESZEL_TOKEN}               # system token — from the hub UI on first run
+      FILESYSTEM: /host                     # statfs the bind-mounted host root for disk %
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # per-container stats
+      - beszel-socket:/beszel_socket                    # shared with the hub
+      - beszel-agent-data:/var/lib/beszel-agent
+      - /:/host:ro                                       # host root, read-only, for disk usage
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
   # ── Observability (centralized logs) ────────────────────────────────────────
   victoria-logs:
     image: victoriametrics/victoria-logs:v1.51.0
@@ -160,3 +213,9 @@ volumes:
     name: meizuno_kuma-data
   vlogs-data:
     name: meizuno_vlogs-data
+  beszel-data:
+    name: meizuno_beszel-data
+  beszel-socket:
+    name: meizuno_beszel-socket
+  beszel-agent-data:
+    name: meizuno_beszel-agent-data

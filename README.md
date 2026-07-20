@@ -108,6 +108,7 @@ network by service name):
 | `status.meizuno.com`   | `http://traefik:80`  |
 | `traefik.meizuno.com`  | `http://traefik:80`  |
 | `logs.meizuno.com`     | `http://traefik:80`  |
+| `beszel.meizuno.com`   | `http://traefik:80`  |
 
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
@@ -180,6 +181,33 @@ setup and periodically:
 ```bash
 ./scripts/verify-restore.sh
 ```
+
+## Server metrics (Beszel)
+
+`beszel` (hub UI + store) and `beszel-agent` track **CPU, RAM and disk** of the
+host, plus per-container stats and network I/O. UI at `beszel.meizuno.com`
+(Beszel's own login; add a Cloudflare Access app in front for an extra gate).
+
+The agent talks to the hub over a **shared unix socket** (`beszel-socket`
+volume) — no network port is exposed. Host disk comes from a read-only
+bind-mount of `/` (`FILESYSTEM=/host`); CPU/RAM from the shared kernel;
+`network_mode: host` gives real NIC stats.
+
+**Setup (once):**
+1. Add the `beszel.meizuno.com` hostname to the tunnel in the Cloudflare
+   dashboard (→ `http://traefik:80`), like the other UIs.
+2. Deploy the hub: `./scripts/deploy.sh` (or `docker compose up -d beszel`).
+3. Open `beszel.meizuno.com`, create the admin account, then **Add System**:
+   set **Host / IP** to `/beszel_socket/beszel.sock` (leave the port blank) and
+   save. The dialog shows the agent's `KEY` and `TOKEN`.
+4. Put them in secrets — `BESZEL_KEY` (the hub's public key) and `BESZEL_TOKEN`
+   — via `./scripts/secrets.sh` (or `.env`).
+5. Deploy the agent: `./scripts/deploy.sh beszel-agent`. It connects over the
+   socket within ~15s and the system goes green. (Until `KEY`/`TOKEN` are set the
+   agent just sits unconnected — harmless.)
+
+To also chart extra mounts (a data disk, etc.), add `EXTRA_FILESYSTEMS` to the
+agent with the matching mount bound in.
 
 ## Token signing (EdDSA)
 
