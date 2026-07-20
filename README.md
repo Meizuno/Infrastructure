@@ -77,7 +77,7 @@ own logs.
 
 ```bash
 # 1. Prereqs (Docker + Compose v2 already installed on the host)
-./scripts/install-prereqs.sh        # installs the docker-rollout plugin
+./scripts/install-prereqs.sh        # docker-rollout plugin + UDP buffers for cloudflared QUIC
 
 # 2. Config
 cp .env.example .env                 # fill in every value

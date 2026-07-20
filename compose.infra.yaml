@@ -30,7 +30,10 @@ services:
           memory: 128M
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned (was :latest) so `deploy.sh` (pull + up -d) doesn't recreate the
+    # tunnel on every app deploy — a restart drops in-flight requests with
+    # "context canceled". Bump deliberately.
+    image: cloudflare/cloudflared:2026.7.2
     container_name: cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run
