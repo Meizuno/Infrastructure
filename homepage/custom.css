@@ -77,14 +77,10 @@ h2.services-group-name,
   opacity: 0.72;
 }
 
-/* ── layout: Apps | Infrastructure side-by-side on desktop, stacked on phone ── */
-/* #services is Homepage's own `flex flex-wrap`; size the two groups to ~50% so
-   they share a row on desktop and wrap (stack) on phone. Working WITH the flex
-   is reliable — forcing #services to grid was ignored on the live build. */
-.services-group { flex: 0 0 100% !important; max-width: 100% !important; }
-@media (min-width: 900px) {
-  .services-group { flex: 0 0 calc(50% - 12px) !important; max-width: calc(50% - 12px) !important; }
-}
+/* ── layout: Apps | Infrastructure as a 2-col grid (desktop), stacked on phone ── */
+#services { display: grid !important; grid-template-columns: 1fr !important; gap: 6px 24px !important; align-items: start !important; }
+@media (min-width: 900px) { #services { grid-template-columns: 1fr 1fr !important; } }
+.services-group { max-width: 100% !important; }
 /* one tile per row within each group column (override Homepage's columns: 3) */
 .services-list { display: flex !important; flex-direction: column !important; gap: 11px !important; }
 
