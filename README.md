@@ -22,6 +22,12 @@ replica per service.
 
 <img src="preview/logs.gif" alt="VictoriaLogs LogsQL query and per-service aggregation" width="100%">
 
+#### 📈 Resource metrics — Beszel, per-host & per-container CPU/RAM/disk/net
+
+<a href="https://beszel.meizuno.com"><img src="preview/beszel.gif" alt="Beszel dashboard — CPU, memory, disk and network time-series for the host and each Docker container" width="100%"></a>
+
+<sub>Agent → hub over WebSocket; per-container stats via the Docker socket. Behind Cloudflare Access: <a href="https://beszel.meizuno.com">beszel.meizuno.com ↗</a></sub>
+
 #### 💾 Backups — nightly pg_dumpall → age-encrypted → R2, restore auto-verified
 
 <img src="preview/backup.gif" alt="Backup and restore-verification pipeline" width="100%">
@@ -32,7 +38,7 @@ replica per service.
 
 <sub>Host CPU/RAM/disk across the top; every tile carries a live up/down dot. Behind Cloudflare Access: <a href="https://home.meizuno.com">home.meizuno.com ↗</a></sub>
 
-> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/backup.mp4">backup</a> · <a href="preview/homepage.mp4">homepage</a>.</sub>
+> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/beszel.mp4">beszel</a> · <a href="preview/backup.mp4">backup</a> · <a href="preview/homepage.mp4">homepage</a>.</sub>
 
 ## How it works
 
