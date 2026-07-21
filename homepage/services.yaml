@@ -67,3 +67,9 @@
         description: Traefik
         server: my-docker
         container: traefik
+    - Code Server:
+        icon: vscode.png
+        href: https://code.meizuno.com
+        description: Browser IDE (VS Code)
+        server: my-docker
+        container: code-server

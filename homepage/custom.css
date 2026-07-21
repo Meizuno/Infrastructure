@@ -77,9 +77,16 @@ h2.services-group-name,
   opacity: 0.72;
 }
 
-/* ── layout: Apps | Infrastructure as a 2-col grid (desktop), stacked on phone ── */
+/* ── layout: Apps | Infrastructure as a 2-col grid (desktop), stacked on phone ──
+   Homepage renders the groups inside #layout-groups (a flex-wrap container);
+   older builds used #services. Target both so the grid is deterministic instead
+   of relying on flex-wrap happening to break into two columns. */
+#layout-groups,
 #services { display: grid !important; grid-template-columns: 1fr !important; gap: 6px 24px !important; align-items: start !important; }
-@media (min-width: 900px) { #services { grid-template-columns: 1fr 1fr !important; } }
+@media (min-width: 900px) {
+  #layout-groups,
+  #services { grid-template-columns: 1fr 1fr !important; }
+}
 .services-group { max-width: 100% !important; }
 /* one tile per row within each group column (override Homepage's columns: 3) */
 .services-list { display: flex !important; flex-direction: column !important; gap: 11px !important; }
