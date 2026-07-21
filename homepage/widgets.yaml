@@ -3,7 +3,6 @@
 # bind-mount of the host root (see compose); cpu/memory/uptime come from the
 # shared kernel.
 - resources:
-    label: Host
     cpu: true
     memory: true
     disk: /host
