@@ -10,7 +10,7 @@ replica per service.
 
 ## In action
 
-<sub>Recorded against the stack running locally.</sub>
+<sub>Recorded against the running stack.</sub>
 
 #### 📊 Status page — Uptime Kuma, all systems operational
 
@@ -26,7 +26,13 @@ replica per service.
 
 <img src="preview/backup.gif" alt="Backup and restore-verification pipeline" width="100%">
 
-> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/backup.mp4">backup</a>.</sub>
+#### 🏠 Dashboard — Homepage, one landing page for every service
+
+<a href="https://home.meizuno.com"><img src="preview/homepage.gif" alt="Homepage dashboard — Apps and Infrastructure in two columns, host CPU/RAM/disk header and a live up/down dot on every tile" width="100%"></a>
+
+<sub>Host CPU/RAM/disk across the top; every tile carries a live up/down dot. Behind Cloudflare Access: <a href="https://home.meizuno.com">home.meizuno.com ↗</a></sub>
+
+> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/backup.mp4">backup</a> · <a href="preview/homepage.mp4">homepage</a>.</sub>
 
 ## How it works
 
