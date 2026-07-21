@@ -72,4 +72,4 @@
         href: https://code.meizuno.com
         description: Browser IDE (VS Code)
         server: my-docker
-        container: code-server
+        container: code-server-code-server-1   # compose-generated name (no container_name set)
