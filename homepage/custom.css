@@ -55,7 +55,7 @@ body { background: #070c16 !important; }
   padding: 4px;
 }
 
-/* ── info-widgets header → matching glass block ── */
+/* ── info-widgets header → matching glass block, with breathing room on top ── */
 #information-widgets {
   background: var(--m-panel) !important;
   border: 1px solid var(--m-bd) !important;
@@ -64,6 +64,7 @@ body { background: #070c16 !important; }
   backdrop-filter: blur(12px);
   box-shadow: var(--m-shadow);
   padding: 8px 12px !important;
+  margin-top: 28px !important;
 }
 
 /* ── group labels: modern uppercase eyebrow ── */
@@ -76,12 +77,23 @@ h2.services-group-name,
   opacity: 0.72;
 }
 
-/* ── layout: stack groups full-width, tiles in a 3-column grid (like the preview) ── */
-#services { display: block !important; }
-.services-group { width: 100% !important; max-width: 100% !important; margin-bottom: 8px; }
-.services-list { display: grid !important; grid-template-columns: 1fr !important; gap: 11px !important; }
-@media (min-width: 820px) {
-  .services-list { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+/* ── layout: Apps | Infrastructure side-by-side on desktop, stacked on phone ── */
+#services {
+  display: grid !important;
+  grid-template-columns: 1fr !important;      /* phone: one column, groups stacked */
+  gap: 6px 22px !important;
+  align-items: start !important;
+}
+@media (min-width: 900px) {
+  #services { grid-template-columns: 1fr 1fr !important; }   /* desktop: Apps left, Infra right */
+}
+.services-group { width: 100% !important; max-width: 100% !important; }
+.services-list { gap: 11px !important; }      /* tiles one per row within each column */
+
+/* footer links: 2-up on desktop, stacked on phone (same as the groups) */
+.bookmark-list { display: grid !important; grid-template-columns: 1fr !important; gap: 11px !important; }
+@media (min-width: 900px) {
+  .bookmark-list { grid-template-columns: 1fr 1fr !important; }
 }
 
 /* ── polish ── */

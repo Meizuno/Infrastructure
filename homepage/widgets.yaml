@@ -9,13 +9,6 @@
     disk: /host
     uptime: true
 
-- openmeteo:
-    label: Prague
-    latitude: 50.08
-    longitude: 14.44
-    units: metric
-    cache: 5
-
 - datetime:
     text_size: xl
     format:
