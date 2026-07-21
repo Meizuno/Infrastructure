@@ -42,10 +42,8 @@
         icon: uptime-kuma.png
         href: https://status.meizuno.com
         description: Uptime Kuma
-        widget:
-          type: uptimekuma
-          url: http://uptime-kuma:3001
-          slug: meizuno
+        server: my-docker            # container status (green dot) like the other
+        container: uptime-kuma        # infra tiles → same tile height, no tall widget
     - Metrics:
         icon: mdi-chart-areaspline
         href: https://beszel.meizuno.com
