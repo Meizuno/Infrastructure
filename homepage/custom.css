@@ -76,6 +76,14 @@ h2.services-group-name,
   opacity: 0.72;
 }
 
+/* ── layout: stack groups full-width, tiles in a 3-column grid (like the preview) ── */
+#services { display: block !important; }
+.services-group { width: 100% !important; max-width: 100% !important; margin-bottom: 8px; }
+.services-list { display: grid !important; grid-template-columns: 1fr !important; gap: 11px !important; }
+@media (min-width: 820px) {
+  .services-list { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
 /* ── polish ── */
 a:focus-visible { outline: 2px solid var(--m-accent); outline-offset: 3px; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) {

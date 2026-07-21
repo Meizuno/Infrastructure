@@ -35,7 +35,7 @@
         icon: mdi-shield-key-outline
         href: https://auth.meizuno.com
         description: SSO / OAuth
-        siteMonitor: https://auth.meizuno.com
+        siteMonitor: https://auth.meizuno.com/health   # / is 404 on the auth service
 
 - Infrastructure:
     - Status:
