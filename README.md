@@ -342,6 +342,19 @@ so the simpler 0600-`.env` flow above is the default.
   `git pull`, before redeploying the apps): it creates each role, transfers
   database + object ownership, and confines CONNECT. Then redeploy the apps and
   `DROP ROLE web`.
+- **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
+  init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
+  the DB + role once with the superuser before deploying the app:
+  ```sh
+  docker compose exec -T postgres psql -U "${POSTGRES_SUPERUSER:-admin}" -d "${POSTGRES_SUPERUSER:-admin}" <<SQL
+  CREATE ROLE chat_user LOGIN PASSWORD '<CHAT_DB_PASSWORD>';
+  CREATE DATABASE chat OWNER chat_user;
+  REVOKE CONNECT ON DATABASE chat FROM PUBLIC;
+  GRANT CONNECT ON DATABASE chat TO chat_user;
+  SQL
+  ```
+  The app's entrypoint then applies the schema via `prisma migrate deploy` — no
+  `CREATEDB`/shadow-DB privilege needed for `deploy` (unlike `migrate dev`).
 - App schema migrations still run from each app's own image/entrypoint
   (e.g. Notes runs `prisma migrate deploy` on start).
 - Kuma keeps `container_name:` and is not rolled.

@@ -87,6 +87,8 @@ services:
       NUXT_AUTH_SERVICE_URL: http://authentication:8080
       NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
       NUXT_COOKIE_DOMAIN: .meizuno.com
+      # Per-user chat history (migrations applied on container start).
+      NUXT_DATABASE_URL: postgres://chat_user:${CHAT_DB_PASSWORD}@postgres:5432/chat?sslmode=disable
     volumes:
       - ./config/ai-chat.yml:/app/config.yml:ro
     labels:
