@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs the docker-rollout CLI plugin (https://github.com/wowu/docker-rollout)
-# used by scripts/deploy.sh for zero-downtime rollouts.
+# used by the pipeline (`docker rollout <service>`) for zero-downtime rollouts.
 set -euo pipefail
 
 PLUGIN_DIR="${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"

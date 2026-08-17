@@ -1,6 +1,6 @@
-# Application services. Deployed with zero downtime via `docker rollout`
-# (see scripts/deploy.sh) — so they MUST NOT declare `container_name:` or
-# `ports:`; rollout transiently runs 2 replicas behind Traefik.
+# Application services. Deployed with zero downtime via `docker rollout` — so
+# they MUST NOT declare `container_name:` or `ports:`; rollout transiently runs
+# 2 replicas behind Traefik.
 # Assembled into the `meizuno` project via compose.yaml (include:).
 # postgres + the networks live in compose.infra.yaml; depends_on resolves
 # across the merged project.
@@ -26,6 +26,14 @@ x-nuxt-defaults: &nuxt-defaults
     timeout: 3s
     retries: 3
     start_period: 15s
+
+# Drain hook, read by `docker rollout` via the docker-rollout.pre-stop-hook
+# label (no CLI flag needed — the pipeline just runs `docker rollout <svc>`).
+# It runs INSIDE the old replica before stop: `touch /tmp/drain` makes
+# /api/health return 503, so Traefik's loadbalancer.healthcheck drops it from
+# the pool, and the sleep lets in-flight requests finish before it's stopped —
+# the health-based half of real zero-downtime. Referenced per app as *drain-hook.
+x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
 
 services:
   authentication:
@@ -96,6 +104,10 @@ services:
       - traefik.http.routers.ai-chat.rule=Host(`chat.meizuno.com`)
       - traefik.http.routers.ai-chat.entrypoints=web
       - traefik.http.services.ai-chat.loadbalancer.server.port=3000
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
     deploy:
       resources:
         limits:
@@ -117,6 +129,10 @@ services:
       - traefik.http.routers.money-manager.rule=Host(`money.meizuno.com`)
       - traefik.http.routers.money-manager.entrypoints=web
       - traefik.http.services.money-manager.loadbalancer.server.port=3000
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.money-manager.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
     deploy:
       resources:
         limits:
@@ -138,6 +154,10 @@ services:
       - traefik.http.routers.recipes-book.rule=Host(`recipes.meizuno.com`)
       - traefik.http.routers.recipes-book.entrypoints=web
       - traefik.http.services.recipes-book.loadbalancer.server.port=3000
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
     deploy:
       resources:
         limits:
@@ -156,6 +176,10 @@ services:
       - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
       - traefik.http.routers.notes.entrypoints=web
       - traefik.http.services.notes.loadbalancer.server.port=3000
+      - traefik.http.services.notes.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.notes.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.notes.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
     deploy:
       resources:
         limits:

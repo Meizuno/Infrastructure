@@ -12,7 +12,7 @@ name: meizuno
 #
 # Nothing is published to the host: cloudflared reaches Traefik over the `edge`
 # docker network. Traefik routes by Host header using the labels on each app.
-# `docker compose` / `docker rollout` / scripts/deploy.sh all operate on the
+# `docker compose` / `docker rollout` all operate on the
 # whole merged project — splitting the files changes layout, not behaviour.
 # ─────────────────────────────────────────────────────────────────────────────
 

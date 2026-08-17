@@ -45,7 +45,7 @@ replica per service.
 - **Two files, one project.** `compose.yaml` is a thin `include:` of
   `compose.infra.yaml` (ingress, data, monitoring, logs) and
   `compose.apps.yaml` (the application services). They merge into a single
-  `meizuno` project, so `docker compose` / `docker rollout` / `deploy.sh` all
+  `meizuno` project, so `docker compose` / `docker rollout` all
   operate on the whole stack — the split is for readability, not isolation.
 - **No host ports.** `cloudflared` reaches Traefik over the `edge` docker
   network, so nothing is published on the VM. The only way in is the tunnel.
@@ -128,13 +128,26 @@ in `CLOUDFLARE_TUNNEL_TOKEN`.
 
 ## Deploy
 
-```bash
-./scripts/deploy.sh                  # pull + zero-downtime rollout of all apps
-./scripts/deploy.sh ai-chat          # just one service
-```
+Apps are deployed with **`docker rollout <service>`** — it starts a second
+replica, waits for it to become healthy, then **drains** the old one (the
+`docker-rollout.pre-stop-hook` label touches `/tmp/drain` → `/api/health`
+returns 503 → Traefik's loadbalancer healthcheck pulls it from the pool → the
+sleep lets in-flight requests finish) before removing it. Real zero-downtime,
+no CLI flags — the hook lives on the service labels. Wire `docker rollout
+<service>` into each app's CI as the last step (SSH to the host).
 
-Wire this into each app's CI as the last step (SSH to the host, then
-`./scripts/deploy.sh <service>`), replacing the old per-app `compose up -d`.
+The full sequence a deploy needs (CI should cover all four):
+
+```bash
+# 1. Materialize .env from the encrypted source (if using SOPS)
+sops -d secrets.enc.env > .env && chmod 600 .env
+# 2. Pull the new image(s)
+docker compose pull ai-chat
+# 3. Reconcile infra (traefik, postgres, cloudflared, monitoring)
+docker compose up -d
+# 4. Zero-downtime rollout of the app(s)
+docker rollout ai-chat
+```
 
 ## Rollback
 
@@ -210,7 +223,7 @@ expose it without Access.
 **Setup:**
 1. Add the `home.meizuno.com` tunnel hostname (→ `http://traefik:80`) and a
    Cloudflare Access app in front of it.
-2. `docker compose up -d homepage` (infra service — `up -d`, not `deploy.sh`).
+2. `docker compose up -d homepage` (infra service — `up -d`, not `docker rollout`).
 
 Host disk uses the read-only `/:/host:ro` bind (`disk: /host` in `widgets.yaml`);
 per-container stats use the read-only docker socket (`docker.yaml`). App tiles
@@ -233,7 +246,7 @@ WebSocket mode avoids that entirely — the only trade-off is that bandwidth sta
 reflect the container's interface, not the host NIC.)
 
 **Setup (once):** beszel + beszel-agent are **infra** services — update them with
-`docker compose up -d <svc>`, NOT `deploy.sh <svc>` (that path runs `docker
+`docker compose up -d <svc>`, NOT `docker rollout <svc>` (rollout
 rollout`, which can't cleanly re-run a singleton).
 1. Add the `beszel.meizuno.com` hostname to the tunnel in the Cloudflare
    dashboard (→ `http://traefik:80`), like the other UIs.
@@ -241,7 +254,7 @@ rollout`, which can't cleanly re-run a singleton).
 3. Open `beszel.meizuno.com`, create the admin account, then **Add System**
    (the Host / Port fields are irrelevant in WebSocket mode — the agent dials
    in). Save; the dialog shows the agent's `KEY` and `TOKEN`.
-4. Put them in the **encrypted** secrets (NOT `.env` directly — `deploy.sh`
+4. Put them in the **encrypted** secrets (NOT `.env` directly — the deploy
    regenerates `.env` from `secrets.enc.env` and would wipe a manual edit):
    ```bash
    ./scripts/secrets.sh edit        # add BESZEL_KEY + BESZEL_TOKEN (one line each, no quotes)
@@ -269,7 +282,7 @@ app redeploys.
 **First-time setup:**
 ```bash
 ./scripts/gen-jwt-key.sh             # writes secrets/jwt_private_key.pem
-docker compose up -d authentication  # or ./scripts/deploy.sh authentication
+docker compose up -d authentication  # or docker rollout authentication
 curl -s https://auth.meizuno.com/.well-known/jwks.json   # shows the public key
 ```
 
@@ -294,10 +307,10 @@ service can verify against several keys by `kid`, so a rotation overlaps the old
 and new key for one access-token TTL:
 ```bash
 ./scripts/rotate-jwt-key.sh             # keep old public key, mint a new signer
-./scripts/deploy.sh authentication      # signs with the new key; still accepts old
+docker rollout authentication           # signs with the new key; still accepts old
 # … wait > 15 min (in-flight old-key tokens expire) …
 ./scripts/rotate-jwt-key.sh --finalize  # drop the old key
-./scripts/deploy.sh authentication
+docker rollout authentication
 ```
 During the overlap both public keys are published at `/.well-known/jwks.json`.
 The old **private** key is discarded immediately on rotation — only its public
@@ -311,7 +324,7 @@ snapshots/backups — only values are encrypted, keys stay readable for diffs.
 
 - `secrets.enc.env` — canonical, **committed**, values encrypted.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
-  `deploy.sh` regenerates it from `secrets.enc.env` on every deploy.
+  Regenerate it on deploy with `sops -d secrets.enc.env > .env`.
 - The age **private** key (`~/.config/sops/age/keys.txt`) never leaves the host
   and is the only thing that can decrypt. **Back it up** — losing it loses the
   secrets.

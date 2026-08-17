@@ -23,7 +23,7 @@ if [ "${1:-}" = "--finalize" ]; then
   : > "$prev"
   chmod 644 "$prev"
   echo "→ cleared $prev (old keys retired)."
-  echo "  Redeploy to stop accepting them:  ./scripts/deploy.sh authentication"
+  echo "  Redeploy to stop accepting them:  docker rollout authentication"
   exit 0
 fi
 
@@ -46,6 +46,6 @@ echo "→ new public half:"
 openssl pkey -in "$key" -pubout
 echo
 echo "Next:"
-echo "  1. ./scripts/deploy.sh authentication      # start signing with the new key (both accepted)"
+echo "  1. docker rollout authentication           # start signing with the new key (both accepted)"
 echo "  2. wait > 15 min                           # old-key access tokens expire"
-echo "  3. ./scripts/rotate-jwt-key.sh --finalize  # then ./scripts/deploy.sh authentication"
+echo "  3. ./scripts/rotate-jwt-key.sh --finalize  # then docker rollout authentication"

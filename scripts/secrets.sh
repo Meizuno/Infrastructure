@@ -4,7 +4,7 @@
 # The canonical, COMMITTED secrets file is secrets.enc.env — values encrypted,
 # keys readable, safe in git and in host backups/snapshots. The plaintext .env
 # is a derived, gitignored, 0600 artifact that docker compose reads at runtime;
-# deploy.sh regenerates it from the encrypted source on every deploy.
+# the deploy pipeline regenerates it from the encrypted source on every deploy.
 #
 # The age PRIVATE key (default ~/.config/sops/age/keys.txt) never leaves the
 # host and is the only thing that can decrypt — back it up somewhere safe;
