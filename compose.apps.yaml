@@ -97,6 +97,12 @@ services:
       NUXT_COOKIE_DOMAIN: .meizuno.com
       # Per-user chat history (migrations applied on container start).
       NUXT_DATABASE_URL: postgres://chat_user:${CHAT_DB_PASSWORD}@postgres:5432/chat?sslmode=disable
+      # Image attachments live on disk (not Postgres), served at /media/{key}.
+      # Kept on a named volume so uploads survive redeploys; both rollout
+      # replicas share it (plain file reads/writes, no exclusive lock).
+      NUXT_MEDIA_DIR: /data/media
+    volumes:
+      - ai-chat-media:/data/media
     labels:
       - traefik.enable=true
       - traefik.http.routers.ai-chat.rule=Host(`chat.meizuno.com`)
@@ -213,6 +219,11 @@ networks:
     name: meizuno_edge
   internal:
     name: meizuno_internal
+
+volumes:
+  # On-disk image attachments for ai-chat (bytes are no longer in Postgres).
+  ai-chat-media:
+    name: meizuno_ai-chat-media
 
 # File-based secrets bind-mounted to /run/secrets/<name> in the target service.
 # The source files live on the host under secrets/ (gitignored) — generate the
