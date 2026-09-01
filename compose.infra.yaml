@@ -87,6 +87,43 @@ services:
           cpus: "1.5"
           memory: 3g
 
+  redis:
+    # Pinned like the other infra images so an app deploy never silently swaps
+    # the Redis version (Redis 8.x is OSI-licensed again). Bump deliberately —
+    # confirm the exact tag exists before deploying.
+    image: redis:8.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    # requirepass even on the internal-only network (defence in depth, like
+    # postgres). appendonly = durable across restarts; maxmemory sits under the
+    # container limit so Redis stays inside its cgroup instead of being OOM-
+    # killed, and noeviction keeps it a safe general store (it errors on writes
+    # at the cap rather than dropping keys). For a pure CACHE instead, switch to
+    # `--maxmemory-policy allkeys-lru` and you can drop `--appendonly yes`.
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 384mb
+      --maxmemory-policy noeviction
+    environment:
+      # exposed only so the healthcheck below can authenticate
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   # ── Monitoring ───────────────────────────────────────────────────────────--─
   kuma:
     image: louislam/uptime-kuma:2
@@ -238,6 +275,8 @@ networks:
 volumes:
   postgres-data:
     name: meizuno_postgres-data
+  redis-data:
+    name: meizuno_redis-data
   kuma-data:
     name: meizuno_kuma-data
   vlogs-data:
