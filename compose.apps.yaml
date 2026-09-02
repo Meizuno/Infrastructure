@@ -85,41 +85,6 @@ services:
           cpus: "0.25"
           memory: 128M
 
-  ai-chat:
-    <<: *nuxt-defaults
-    image: ghcr.io/meizuno/ai-chat:latest
-    environment:
-      NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # Split auth URLs: server-to-server stays internal (no hairpin), the
-      # browser OAuth flow uses the public auth origin.
-      NUXT_AUTH_SERVICE_URL: http://authentication:8080
-      NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
-      NUXT_COOKIE_DOMAIN: .meizuno.com
-      # Per-user chat history (migrations applied on container start).
-      NUXT_DATABASE_URL: postgres://chat_user:${CHAT_DB_PASSWORD}@postgres:5432/chat?sslmode=disable
-      # ai-chat's on-disk state lives on one named volume mounted at /data:
-      # image attachments (served at /media/{key}, no longer in Postgres) and
-      # per-level log files (info/warning/error, alongside stdout → Vector →
-      # VictoriaLogs). Both rollout replicas share it — plain file I/O, no lock.
-      NUXT_MEDIA_DIR: /data/media
-      NUXT_LOG_DIR: /data/logs
-    volumes:
-      - ai-chat-data:/data
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.ai-chat.rule=Host(`chat.meizuno.com`)
-      - traefik.http.routers.ai-chat.entrypoints=web
-      - traefik.http.services.ai-chat.loadbalancer.server.port=3000
-      - traefik.http.services.ai-chat.loadbalancer.healthcheck.path=/api/health
-      - traefik.http.services.ai-chat.loadbalancer.healthcheck.interval=2s
-      - traefik.http.services.ai-chat.loadbalancer.healthcheck.timeout=2s
-      - *drain-hook
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-
   money-manager:
     <<: *nuxt-defaults
     image: ghcr.io/meizuno/money-manager:latest
@@ -221,12 +186,6 @@ networks:
     name: meizuno_edge
   internal:
     name: meizuno_internal
-
-volumes:
-  # ai-chat's on-disk state: image attachments (/data/media) + log files
-  # (/data/logs). One volume, both subtrees.
-  ai-chat-data:
-    name: meizuno_ai-chat-data
 
 # File-based secrets bind-mounted to /run/secrets/<name> in the target service.
 # The source files live on the host under secrets/ (gitignored) — generate the

@@ -1,11 +1,13 @@
 name: meizuno
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Unified stack for the meizuno ecosystem, assembled from two files by concern:
+# Unified stack for the meizuno ecosystem, assembled from files by concern:
 #
-#   compose.infra.yaml  — ingress (traefik, cloudflared), data (postgres),
-#                         monitoring (kuma), logs (victoria-logs, vector)
-#   compose.apps.yaml   — the application services (zero-downtime rollout)
+#   compose.infra.yaml   — ingress (traefik, cloudflared), data (postgres,
+#                          redis), monitoring (kuma), logs (victoria-logs, vector)
+#   compose.apps.yaml    — the application services (zero-downtime rollout)
+#   compose.ai-chat.yaml — ai-chat + its locally-built code-execution sandbox
+#                          on an isolated (no-egress) network
 #
 #   Internet → Cloudflare edge → cloudflared (token) → traefik:80 → app (by Host)
 #                                                                  ↘ postgres (internal)
@@ -19,3 +21,4 @@ name: meizuno
 include:
   - compose.infra.yaml
   - compose.apps.yaml
+  - compose.ai-chat.yaml

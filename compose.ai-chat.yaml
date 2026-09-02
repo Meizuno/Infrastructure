@@ -1,0 +1,117 @@
+# ai-chat and its code-execution sandbox, split into their own file.
+#
+# The sandbox source lives in ./sandbox and is built LOCALLY on deploy (no image
+# is published) — run with `docker compose up -d --build` so it rebuilds. It is
+# attached ONLY to the isolated `sandbox` network (internal: true → no internet,
+# no host, and NOT on the meizuno `internal`/`edge` nets), so escaped code can
+# reach nothing but ai-chat, and ai-chat is the only thing that can reach it.
+#
+# Assembled into the `meizuno` project via compose.yaml (include:). Anchors are
+# file-scoped in YAML, so the nuxt-app defaults are declared here too.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+x-nuxt-defaults: &nuxt-defaults
+  <<: *app-defaults
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+    interval: 5s
+    timeout: 3s
+    retries: 3
+    start_period: 15s
+
+x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
+
+services:
+  ai-chat:
+    <<: *nuxt-defaults
+    image: ghcr.io/meizuno/ai-chat:latest
+    environment:
+      NUXT_OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Split auth URLs: server-to-server stays internal (no hairpin), the
+      # browser OAuth flow uses the public auth origin.
+      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
+      NUXT_COOKIE_DOMAIN: .meizuno.com
+      # Per-user chat history (migrations applied on container start).
+      NUXT_DATABASE_URL: postgres://chat_user:${CHAT_DB_PASSWORD}@postgres:5432/chat?sslmode=disable
+      # ai-chat's on-disk state lives on one named volume mounted at /data:
+      # image attachments (served at /media/{key}, no longer in Postgres) and
+      # per-level log files (info/warning/error, alongside stdout → Vector →
+      # VictoriaLogs). Both rollout replicas share it — plain file I/O, no lock.
+      NUXT_MEDIA_DIR: /data/media
+      NUXT_LOG_DIR: /data/logs
+      # Code-execution sandbox, reachable only over the isolated `sandbox`
+      # network (internal: true, no egress) — see the sandbox service below.
+      NUXT_SANDBOX_URL: http://sandbox:8000
+    volumes:
+      - ai-chat-data:/data
+    # Override the nuxt-defaults networks to also join `sandbox`. ai-chat is the
+    # only service on it, so it alone can reach the sandbox (and vice-versa).
+    networks: [edge, internal, sandbox]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ai-chat.rule=Host(`chat.meizuno.com`)
+      - traefik.http.routers.ai-chat.entrypoints=web
+      - traefik.http.services.ai-chat.loadbalancer.server.port=3000
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.ai-chat.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # Built locally from ./sandbox each deploy (`up --build`). Runs untrusted
+  # Python for ai-chat's run_code tool. Hardened: non-root image, read-only
+  # rootfs + tmpfs scratch, all caps dropped, no privilege escalation, resource
+  # caps. No traefik, no ports, no volumes, no host mounts, no docker.sock.
+  sandbox:
+    build: ./sandbox
+    image: meizuno/sandbox:local
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks: [sandbox]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 128
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
+  # Isolated network for the code-execution sandbox. `internal: true` gives it
+  # no gateway to the internet or host, and it is separate from `internal`
+  # (Postgres, the auth signing key): sandboxed code can reach ai-chat and
+  # nothing else.
+  sandbox:
+    name: meizuno_sandbox
+    internal: true
+
+volumes:
+  # ai-chat's on-disk state: image attachments (/data/media) + log files
+  # (/data/logs). One volume, both subtrees.
+  ai-chat-data:
+    name: meizuno_ai-chat-data
