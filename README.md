@@ -325,6 +325,11 @@ snapshots/backups — only values are encrypted, keys stay readable for diffs.
 - `secrets.enc.env` — canonical, **committed**, values encrypted.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
   Regenerate it on deploy with `sops -d secrets.enc.env > .env`.
+- **Per-app files.** An app can keep its own secrets apart from the shared stack:
+  `secrets.calories.enc.env` → `calories.env` (loaded by `compose.calories.yaml`
+  via `env_file`). `./scripts/secrets.sh decrypt` materializes **all** of them;
+  edit one with `./scripts/secrets.sh edit calories`. (calories' DB password
+  stays in the main `.env` — Postgres init reads it too.)
 - The age **private** key (`~/.config/sops/age/keys.txt`) never leaves the host
   and is the only thing that can decrypt. **Back it up** — losing it loses the
   secrets.

@@ -19,14 +19,18 @@ services:
     image: ghcr.io/meizuno/calories:latest
     environment:
       PORT: 8080
+      # The DB password is shared with Postgres role creation (postgres/init
+      # reads CALORIES_DB_PASSWORD too), so it stays in the main .env.
       DATABASE_URL: postgres://calories_user:${CALORIES_DB_PASSWORD}@postgres:5432/calories?sslmode=disable
-      # Self-contained auth: its own Google OAuth + its own HS256 access tokens
-      # (no central auth service). The redirect URL must be registered on
-      # calories' own Google OAuth client exactly.
-      JWT_SECRET: ${CALORIES_JWT_SECRET}
-      GOOGLE_CLIENT_ID: ${CALORIES_GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${CALORIES_GOOGLE_CLIENT_SECRET}
+      # Public URL, not a secret — must match calories' Google OAuth client exactly.
       GOOGLE_REDIRECT_URL: https://calories.meizuno.com/api/auth/google/callback
+    # Self-contained auth secrets (its own Google OAuth + its own HS256 signing)
+    # live in their OWN SOPS-managed file, apart from the shared stack secrets.
+    # env_file injects them into the container with their real names
+    # (JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET). Materialize it with
+    # `./scripts/secrets.sh decrypt` (see calories.env.example).
+    env_file:
+      - calories.env
     labels:
       - traefik.enable=true
       - traefik.http.routers.calories.rule=Host(`calories.meizuno.com`)
