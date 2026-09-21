@@ -26,11 +26,11 @@
         href: https://recipes.meizuno.com
         description: Recipe book
         siteMonitor: https://recipes.meizuno.com
-    - Calories:
+    - Forma:
         icon: mdi-food-apple-outline
-        href: https://calories.meizuno.com
+        href: https://forma.meizuno.com
         description: Calorie & macro diary
-        siteMonitor: https://calories.meizuno.com
+        siteMonitor: https://forma.meizuno.com
     - Authentication:
         icon: mdi-shield-key-outline
         href: https://auth.meizuno.com

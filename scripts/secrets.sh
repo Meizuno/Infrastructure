@@ -7,7 +7,7 @@
 # compose reads at runtime; the deploy pipeline regenerates them on every deploy.
 #
 #   secrets.enc.env           → .env           (shared stack secrets)
-#   secrets.calories.enc.env  → calories.env   (calories app secrets; env_file)
+#   secrets.forma.enc.env     → forma.env      (forma app secrets; env_file)
 #
 # The age PRIVATE key (default ~/.config/sops/age/keys.txt) never leaves the
 # host and is the only thing that can decrypt — back it up somewhere safe;
@@ -20,7 +20,7 @@
 #   ./scripts/secrets.sh rekey         # re-encrypt to current .sops.yaml recipients
 #
 # [name] selects a file: omit (or `main`) for secrets.enc.env, or an app name
-# (e.g. `calories`) for secrets.<name>.enc.env.
+# (e.g. `forma`) for secrets.<name>.enc.env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,7 +30,7 @@ PLAIN=.env
 # that exist; add a line to give another app its own file.
 PAIRS=(
   "secrets.enc.env:.env"
-  "secrets.calories.enc.env:calories.env"
+  "secrets.forma.enc.env:forma.env"
 )
 AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 export SOPS_AGE_KEY_FILE="$AGE_KEY_FILE"
@@ -74,7 +74,7 @@ EOF
     else
       echo "→ no $PLAIN found. Create it from .env.example, then run 'init' again."
     fi
-    echo "→ per-app files (e.g. secrets.calories.enc.env) are created with: $0 edit <name>"
+    echo "→ per-app files (e.g. secrets.forma.enc.env) are created with: $0 edit <name>"
     ;;
   edit)
     need sops "Install SOPS first (scripts/secrets.sh init explains how)."

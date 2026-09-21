@@ -1,7 +1,7 @@
 # Secrets & local config — never commit. The plaintext env files are derived
 # from their SOPS-encrypted sources (secrets*.enc.env, which ARE committed).
 .env
-calories.env
+forma.env
 config/ai-chat.yml
 # Host-only secret files mounted into containers (JWT signing key, etc.)
 secrets/

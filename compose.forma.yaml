@@ -1,0 +1,71 @@
+# Forma — a self-contained calorie tracker (Go API + Vite SPA in one image),
+# built as ghcr.io/meizuno/forma and served at forma.meizuno.com. Renamed from
+# `calories` throughout: service, image, DB + role, env keys and secrets file.
+# The ONLY thing still named calories is the old public host, kept alive as a
+# 301 to forma.meizuno.com (labels below). An existing cluster needs
+# scripts/rename-calories-to-forma.sh run once before this is deployed — the
+# Postgres database and role are renamed, and postgres/init only runs on a
+# fresh volume.
+# It runs its OWN Google OAuth and signs its OWN HS256 access tokens (migrated
+# off the central meizuno SSO), so it needs GOOGLE_* + JWT_SECRET rather than the
+# auth-service delegation vars, and its cookies are host-only (forma.meizuno.com
+# — which is why exactly ONE host serves the app and the old one redirects).
+# Assembled into the `meizuno` project via compose.yaml (include:). Anchors are
+# file-scoped in YAML, so the app defaults are declared here too.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  forma:
+    <<: *app-defaults
+    image: ghcr.io/meizuno/forma:latest
+    environment:
+      PORT: 8080
+      # The DB password is shared with Postgres role creation (postgres/init
+      # reads FORMA_DB_PASSWORD too), so it stays in the main .env.
+      DATABASE_URL: postgres://forma_user:${FORMA_DB_PASSWORD}@postgres:5432/forma?sslmode=disable
+      # Public URL, not a secret — must match Forma's Google OAuth client
+      # exactly. Add this URI to the client BEFORE deploying (see
+      # forma.env.example); the old calories.meizuno.com one can be dropped
+      # once traffic has moved.
+      GOOGLE_REDIRECT_URL: https://forma.meizuno.com/api/auth/google/callback
+    # Self-contained auth secrets (its own Google OAuth + its own HS256 signing)
+    # live in their OWN SOPS-managed file, apart from the shared stack secrets.
+    # env_file injects them into the container with their real names
+    # (JWT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET). Materialize it with
+    # `./scripts/secrets.sh decrypt` (see forma.env.example).
+    env_file:
+      - forma.env
+    labels:
+      - traefik.enable=true
+      # Canonical host.
+      - traefik.http.routers.forma.rule=Host(`forma.meizuno.com`)
+      - traefik.http.routers.forma.entrypoints=web
+      # Legacy host → permanent redirect, so old bookmarks and any link still
+      # pointing at calories.meizuno.com keep working. The middleware answers
+      # the request itself, so this router never reaches the backend. `$${1}` is
+      # escaped for compose interpolation — Traefik must receive `${1}`.
+      - traefik.http.routers.forma-legacy.rule=Host(`calories.meizuno.com`)
+      - traefik.http.routers.forma-legacy.entrypoints=web
+      - traefik.http.routers.forma-legacy.middlewares=forma-legacy-host
+      - traefik.http.middlewares.forma-legacy-host.redirectregex.regex=^https?://calories\.meizuno\.com/(.*)
+      - traefik.http.middlewares.forma-legacy-host.redirectregex.replacement=https://forma.meizuno.com/$${1}
+      - traefik.http.middlewares.forma-legacy-host.redirectregex.permanent=true
+      - traefik.http.services.forma.loadbalancer.server.port=8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
