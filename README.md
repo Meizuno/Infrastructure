@@ -377,9 +377,18 @@ so the simpler 0600-`.env` flow above is the default.
   renames the database and role in place (no dump/restore), resets the role
   password to `FORMA_DB_PASSWORD`, and re-applies the CONNECT confinement. The
   app must be stopped first — Postgres won't rename a database that has open
-  connections. Also rename the encrypted secrets file
-  (`git mv secrets.calories.enc.env secrets.forma.enc.env`) and `.env`'s
-  `CALORIES_DB_PASSWORD` key to `FORMA_DB_PASSWORD`.
+  connections. Two secrets-side renames go with it:
+  ```sh
+  mv calories.env forma.env          # plaintext, gitignored — a plain mv, not git mv
+  ./scripts/secrets.sh edit          # CALORIES_DB_PASSWORD -> FORMA_DB_PASSWORD
+  ./scripts/secrets.sh decrypt       # re-derive .env from secrets.enc.env
+  ```
+  If a host predates per-app SOPS files it will have a **plaintext**
+  `calories.env` and no `secrets.calories.enc.env`, so there is nothing to
+  `git mv` — rename the plaintext file and (recommended) encrypt it afterwards:
+  `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
+  Until it is renamed, note that `.gitignore` covers `forma.env`, **not**
+  `calories.env` — so the stale plaintext file is no longer ignored.
 - **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
   init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
   the DB + role once with the superuser before deploying the app:
