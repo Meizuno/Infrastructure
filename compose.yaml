@@ -8,7 +8,8 @@ name: meizuno
 #   compose.apps.yaml    — the SSO-delegating application services (rollout)
 #   compose.ai-chat.yaml — ai-chat + its locally-built code-execution sandbox
 #                          on an isolated (no-egress) network
-#   compose.calories.yaml — calories (self-contained Google OAuth + JWT auth)
+#   compose.forma.yaml   — forma, ex-calories (self-contained Google OAuth
+#                          + JWT auth)
 #
 #   Internet → Cloudflare edge → cloudflared (token) → traefik:80 → app (by Host)
 #                                                                  ↘ postgres (internal)
@@ -23,4 +24,4 @@ include:
   - compose.infra.yaml
   - compose.apps.yaml
   - compose.ai-chat.yaml
-  - compose.calories.yaml
+  - compose.forma.yaml

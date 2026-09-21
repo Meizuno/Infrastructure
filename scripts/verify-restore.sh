@@ -69,7 +69,7 @@ echo "── per-DB tables / rows ──"
 # tables, or psql logged a non-benign error. Lets a caller (backup-db.sh) treat
 # a green Kuma ping as "backup uploaded AND provably restorable".
 fail=0
-for db in authentication money_manager recipes_book notes calories; do
+for db in authentication money_manager recipes_book notes forma; do
   if q -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
     docker exec "$name" psql -qX -U postgres -d "$db" -c "ANALYZE;" >/dev/null 2>&1 || true
     tbls=$(q -d "$db" -c "SELECT count(*) FROM pg_stat_user_tables;")

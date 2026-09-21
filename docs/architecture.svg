@@ -80,10 +80,10 @@
   <circle cx="336" cy="346" r="5" fill="#38bdf8"/>
   <text x="352" y="344" class="name">Notes</text>
   <text x="352" y="364" class="tag">Nuxt · Prisma · MCP</text>
-  <!-- calories -->
+  <!-- forma -->
   <rect class="card" x="586" y="320" width="238" height="64" rx="12"/>
   <circle cx="606" cy="346" r="5" fill="#14b8a6"/>
-  <text x="622" y="344" class="name">Calories</text>
+  <text x="622" y="344" class="name">Forma</text>
   <text x="622" y="364" class="tag">Go · chi · sqlc + Vue SPA</text>
 
   <!-- ── Postgres ──────────────────────────────────────────────────── -->

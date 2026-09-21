@@ -117,6 +117,8 @@ network by service name):
 | `recipes.meizuno.com`  | `http://traefik:80`  |
 | `notes.meizuno.com`    | `http://traefik:80`  |
 | `auth.meizuno.com`     | `http://traefik:80`  |
+| `forma.meizuno.com`    | `http://traefik:80`  |
+| `calories.meizuno.com` | `http://traefik:80`  |
 | `status.meizuno.com`   | `http://traefik:80`  |
 | `traefik.meizuno.com`  | `http://traefik:80`  |
 | `logs.meizuno.com`     | `http://traefik:80`  |
@@ -125,6 +127,13 @@ network by service name):
 
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
+
+The **Forma** app (compose service `forma`, formerly `calories`) is served at
+`forma.meizuno.com`;
+`calories.meizuno.com` is its former host and must stay in the tunnel so Traefik
+can answer it with a **301** to the new one (`compose.forma.yaml` labels).
+Only the canonical host serves the app — Forma signs host-only cookies and has a
+single Google OAuth redirect URI, so serving both would break login.
 
 ## Deploy
 
@@ -326,9 +335,9 @@ snapshots/backups — only values are encrypted, keys stay readable for diffs.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
   Regenerate it on deploy with `sops -d secrets.enc.env > .env`.
 - **Per-app files.** An app can keep its own secrets apart from the shared stack:
-  `secrets.calories.enc.env` → `calories.env` (loaded by `compose.calories.yaml`
+  `secrets.forma.enc.env` → `forma.env` (loaded by `compose.forma.yaml`
   via `env_file`). `./scripts/secrets.sh decrypt` materializes **all** of them;
-  edit one with `./scripts/secrets.sh edit calories`. (calories' DB password
+  edit one with `./scripts/secrets.sh edit forma`. (forma's DB password
   stays in the main `.env` — Postgres init reads it too.)
 - The age **private** key (`~/.config/sops/age/keys.txt`) never leaves the host
   and is the only thing that can decrypt. **Back it up** — losing it loses the
@@ -360,6 +369,17 @@ so the simpler 0600-`.env` flow above is the default.
   `git pull`, before redeploying the apps): it creates each role, transfers
   database + object ownership, and confines CONNECT. Then redeploy the apps and
   `DROP ROLE web`.
+- **Renaming `calories` → `forma`.** The app is now Forma end to end (service,
+  image `ghcr.io/meizuno/forma`, database, role, env keys, `forma.env`). On an
+  **existing** cluster the init script won't rename anything, so run
+  `scripts/rename-calories-to-forma.sh` once — after `git pull` and
+  `./scripts/secrets.sh decrypt`, but **before** `docker compose up -d`: it
+  renames the database and role in place (no dump/restore), resets the role
+  password to `FORMA_DB_PASSWORD`, and re-applies the CONNECT confinement. The
+  app must be stopped first — Postgres won't rename a database that has open
+  connections. Also rename the encrypted secrets file
+  (`git mv secrets.calories.enc.env secrets.forma.enc.env`) and `.env`'s
+  `CALORIES_DB_PASSWORD` key to `FORMA_DB_PASSWORD`.
 - **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
   init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
   the DB + role once with the superuser before deploying the app:
