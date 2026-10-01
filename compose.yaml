@@ -10,6 +10,8 @@ name: meizuno
 #                          on an isolated (no-egress) network
 #   compose.forma.yaml   — forma, ex-calories (self-contained Google OAuth
 #                          + JWT auth)
+#   compose.english.yaml — english (FastAPI + Vue SPA, self-contained Google
+#                          OAuth + session cookie, calls OpenAI)
 #
 #   Internet → Cloudflare edge → cloudflared (token) → traefik:80 → app (by Host)
 #                                                                  ↘ postgres (internal)
@@ -25,3 +27,4 @@ include:
   - compose.apps.yaml
   - compose.ai-chat.yaml
   - compose.forma.yaml
+  - compose.english.yaml

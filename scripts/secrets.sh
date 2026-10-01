@@ -8,6 +8,7 @@
 #
 #   secrets.enc.env           → .env           (shared stack secrets)
 #   secrets.forma.enc.env     → forma.env      (forma app secrets; env_file)
+#   secrets.english.enc.env   → english.env    (english app secrets; env_file)
 #
 # The age PRIVATE key (default ~/.config/sops/age/keys.txt) never leaves the
 # host and is the only thing that can decrypt — back it up somewhere safe;
@@ -31,6 +32,7 @@ PLAIN=.env
 PAIRS=(
   "secrets.enc.env:.env"
   "secrets.forma.enc.env:forma.env"
+  "secrets.english.enc.env:english.env"
 )
 AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 export SOPS_AGE_KEY_FILE="$AGE_KEY_FILE"
