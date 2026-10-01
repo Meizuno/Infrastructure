@@ -60,12 +60,15 @@ services:
     # with their real names. Materialize it with `./scripts/secrets.sh decrypt`
     # (see english.env.example).
     #
-    # `required: false` on purpose, unlike forma's: a missing env_file makes
+    # `required: false` on purpose, unlike forma's. A missing env_file makes
     # compose refuse to PARSE the merged project, so every `docker compose`
-    # command for the whole stack fails until the file exists. While english has
-    # no image published yet that would be a trap on `git pull`. Missing secrets
-    # instead fail loudly but locally — the app exits on startup because
-    # ENGLISH_JWT_SECRET is a required setting.
+    # command for the whole stack fails until the file exists — a trap on
+    # `git pull` while english has no published image. It is safe to relax here
+    # because a missing secret still fails loudly, just locally: pydantic makes
+    # ENGLISH_JWT_SECRET required, so the app exits on startup. forma keeps the
+    # hard requirement for the opposite reason — it falls back to a random
+    # per-boot JWT secret with only a warning, so a missing file there would
+    # degrade silently instead of failing.
     env_file:
       - path: english.env
         required: false

@@ -21,4 +21,12 @@ jobs:
       - name: Validate compose.yaml
         # docker compose is preinstalled on ubuntu runners.
         # --env-file resolves ${...} interpolation; -q validates without output.
-        run: docker compose --env-file .env.example config -q
+        #
+        # The per-app `env_file:` targets (forma.env, ...) are gitignored — they
+        # are SOPS-derived on the host — and compose refuses to PARSE a project
+        # whose env_file is missing, so stand each one in from its committed
+        # example first. Same substitution as --env-file .env.example does for
+        # the shared vars.
+        run: |
+          for example in *.env.example; do cp "$example" "${example%.example}"; done
+          docker compose --env-file .env.example config -q
