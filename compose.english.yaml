@@ -1,0 +1,94 @@
+# english — daily short English-practice sessions (github.com/Meizuno/English):
+# FastAPI (Python 3.12, asyncpg) that also serves the built Vue SPA from
+# api/src/static, so the API and the client are ONE origin and the session
+# cookie needs no CORS.
+#
+# Self-contained auth, like forma: its OWN Google OAuth client and its OWN
+# HS256 session cookie, so it takes ENGLISH_GOOGLE_* + ENGLISH_JWT_SECRET
+# rather than the auth-service delegation vars. It also calls OpenAI to
+# generate exercises, so it needs egress (the `edge` network provides it).
+#
+# Settings are read by pydantic-settings with the ENGLISH_ prefix, so every var
+# below maps to a field in api/src/config.py.
+#
+# Schema: applied by the app itself on startup (api/migrations/*.sql, tracked in
+# a schema_migrations table, guarded by a Postgres advisory lock so two replicas
+# starting together can't both migrate). No separate migration step.
+#
+# Assembled into the `meizuno` project via compose.yaml (include:). Anchors are
+# file-scoped in YAML, so the app defaults are declared here too.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  english:
+    <<: *app-defaults
+    image: ghcr.io/meizuno/english:latest
+    # The upstream base is a python-slim image, which ships neither curl nor
+    # wget — so probe /health with the stdlib instead.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    environment:
+      # The DB password is shared with Postgres role creation (postgres/init
+      # reads ENGLISH_DB_PASSWORD too), so it stays in the main .env.
+      # asyncpg takes a libpq DSN; no sslmode here — Postgres is reached over
+      # the internal docker network and speaks plaintext on it.
+      ENGLISH_DATABASE_URL: postgresql://english_user:${ENGLISH_DB_PASSWORD}@postgres:5432/english
+      # Public base URL as the browser sees it, NO trailing slash. The app
+      # derives its Google redirect URI from this, so it must match the OAuth
+      # client exactly: <ENGLISH_PUBLIC_URL>/api/auth/google/callback.
+      ENGLISH_PUBLIC_URL: https://english.meizuno.com
+      # Served at the domain root here. root_path is only for code-server's
+      # /proxy/<port>/ prefix in dev — empty is what production wants.
+      ENGLISH_ROOT_PATH: ""
+      # `fake` serves canned exercises with no API key; production wants openai.
+      ENGLISH_GENERATOR: openai
+      ENGLISH_OPENAI_MODEL: gpt-5.4-mini
+    # Its OWN secrets (Google OAuth client, session signing key, OpenAI key,
+    # sign-in allowlist) live in their OWN SOPS-managed file, apart from the
+    # shared stack secrets — the same split forma uses. env_file injects them
+    # with their real names. Materialize it with `./scripts/secrets.sh decrypt`
+    # (see english.env.example).
+    #
+    # `required: false` on purpose, unlike forma's: a missing env_file makes
+    # compose refuse to PARSE the merged project, so every `docker compose`
+    # command for the whole stack fails until the file exists. While english has
+    # no image published yet that would be a trap on `git pull`. Missing secrets
+    # instead fail loudly but locally — the app exits on startup because
+    # ENGLISH_JWT_SECRET is a required setting.
+    env_file:
+      - path: english.env
+        required: false
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.english.rule=Host(`english.meizuno.com`)
+      - traefik.http.routers.english.entrypoints=web
+      - traefik.http.services.english.loadbalancer.server.port=8000
+      - traefik.http.services.english.loadbalancer.healthcheck.path=/health
+      - traefik.http.services.english.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.english.loadbalancer.healthcheck.timeout=2s
+      # NO docker-rollout.pre-stop-hook: the app has no drain switch (nothing
+      # flips /health to 503), so `docker rollout english` could not drain the
+      # old replica. Deploy it with `docker compose up -d english` until the app
+      # grows one. See README → Deploy.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal

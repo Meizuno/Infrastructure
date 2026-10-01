@@ -118,6 +118,7 @@ network by service name):
 | `notes.meizuno.com`    | `http://traefik:80`  |
 | `auth.meizuno.com`     | `http://traefik:80`  |
 | `forma.meizuno.com`    | `http://traefik:80`  |
+| `english.meizuno.com`  | `http://traefik:80`  |
 | `calories.meizuno.com` | `http://traefik:80`  |
 | `status.meizuno.com`   | `http://traefik:80`  |
 | `traefik.meizuno.com`  | `http://traefik:80`  |
@@ -389,6 +390,13 @@ so the simpler 0600-`.env` flow above is the default.
   `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
   Until it is renamed, note that `.gitignore` covers `forma.env`, **not**
   `calories.env` — so the stale plaintext file is no longer ignored.
+- **english** (`compose.english.yaml`) is self-contained like forma: its own
+  Google OAuth client, its own session cookie, its own `english.env` secrets
+  file, and its own OpenAI key (separate from the ai-chat stack's). It applies
+  its own schema on startup from `api/migrations/*.sql`, so there is no
+  migration step — but it needs the `english` DB + `english_user` role to exist
+  first (see the next bullet). It has **no drain hook**, so deploy it with
+  `docker compose up -d english`, not `docker rollout english`.
 - **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
   init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
   the DB + role once with the superuser before deploying the app:

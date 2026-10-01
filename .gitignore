@@ -2,6 +2,7 @@
 # from their SOPS-encrypted sources (secrets*.enc.env, which ARE committed).
 .env
 forma.env
+english.env
 config/ai-chat.yml
 # Host-only secret files mounted into containers (JWT signing key, etc.)
 secrets/
