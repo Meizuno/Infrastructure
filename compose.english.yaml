@@ -26,6 +26,10 @@ x-app-defaults: &app-defaults
     postgres:
       condition: service_healthy
 
+# Same hook as the apps in compose.apps.yaml (anchors are file-scoped, so it is
+# repeated here). `docker rollout english` reads it from the label.
+x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
+
 services:
   english:
     <<: *app-defaults
@@ -80,10 +84,9 @@ services:
       - traefik.http.services.english.loadbalancer.healthcheck.path=/health
       - traefik.http.services.english.loadbalancer.healthcheck.interval=2s
       - traefik.http.services.english.loadbalancer.healthcheck.timeout=2s
-      # NO docker-rollout.pre-stop-hook: the app has no drain switch (nothing
-      # flips /health to 503), so `docker rollout english` could not drain the
-      # old replica. Deploy it with `docker compose up -d english` until the app
-      # grows one. See README → Deploy.
+      # Drain before stop: the app answers 503 on /health while /tmp/drain
+      # exists, so Traefik drops the old replica and in-flight requests finish.
+      - *drain-hook
     deploy:
       resources:
         limits:

@@ -395,8 +395,9 @@ so the simpler 0600-`.env` flow above is the default.
   file, and its own OpenAI key (separate from the ai-chat stack's). It applies
   its own schema on startup from `api/migrations/*.sql`, so there is no
   migration step — but it needs the `english` DB + `english_user` role to exist
-  first (see the next bullet). It has **no drain hook**, so deploy it with
-  `docker compose up -d english`, not `docker rollout english`.
+  first (see the next bullet). Deployed with `docker rollout english` like the
+  other apps: its `/health` answers 503 while `/tmp/drain` exists, which is what
+  the drain hook touches.
 - **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
   init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
   the DB + role once with the superuser before deploying the app:
