@@ -58,11 +58,25 @@ services:
       - traefik.http.middlewares.forma-legacy-host.redirectregex.replacement=https://forma.meizuno.com/$${1}
       - traefik.http.middlewares.forma-legacy-host.redirectregex.permanent=true
       - traefik.http.services.forma.loadbalancer.server.port=8080
+    # Measured rather than guessed. The image was built and run against a
+    # seeded diary (60 days, ~1000 entries) while its own request log was
+    # read back: 72 MB resident idle, 94 MB at the peak of sixteen concurrent
+    # clients, and one core saturated the whole time. Against the old 128 MB
+    # that peak was 73% of the limit with nothing left for a bad day, and the
+    # old 0.25 CPU was a quarter of the core the process actually wanted.
+    #
+    # 2 CPUs is room for a second uvicorn worker, which is what buys anything
+    # here: one worker is one event loop on one core, and every read waits
+    # behind it. Two workers measured 40-60% more requests a second on the
+    # read endpoints (day, foods, templates, measurements) and cost 206 MB
+    # between them, which is why the memory goes up with the CPU rather than
+    # instead of it. NOTE: the app still starts one worker — WEB_CONCURRENCY
+    # is what spends the second core, and it is not set here yet.
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "2"
+          memory: 512M
 
 networks:
   edge:
