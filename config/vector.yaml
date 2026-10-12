@@ -10,6 +10,25 @@ transforms:
     source: |
       .service = .container_name
 
+      # A structured line, opened out into fields.
+      #
+      # Forma writes JSON on a deployment — one object per line carrying the
+      # request's path, status, duration and the time it spent in Postgres.
+      # Shipped as an opaque string, all of that is readable and none of it is
+      # queryable: "every 500 in the last hour" is a substring search, and an
+      # alert on p95 latency is not possible at all.
+      #
+      # Lenient on purpose. Anything that is not JSON — uvicorn's own startup
+      # lines, Postgres, Traefik, cloudflared, every other container here —
+      # falls through untouched and keeps its `message` exactly as it was.
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        . = merge(., object!(parsed), deep: true)
+        # Keep `message` populated: it is the sink's _msg_field, and a row
+        # without one is a row that shows up blank in the log viewer.
+        .message = string(.event) ?? .message
+      }
+
 sinks:
   vlogs:
     type: elasticsearch
