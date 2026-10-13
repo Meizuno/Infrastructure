@@ -50,8 +50,20 @@ services:
     # `run --rm` is a throwaway container from the NEW image, which is the
     # only one carrying the new migration files; `exec` would reach the old.
     #
-    # The PRODUCT catalogue is a different thing and is never automatic —
-    # scripts/import_products.py, by hand, with a dry run first.
+    # The PRODUCT catalogue is a different thing and is never automatic.
+    # The dump lives on the host and is mounted in; the container has no
+    # /data of its own:
+    #
+    #   docker compose run --rm --label traefik.enable=false \
+    #       -v /srv/forma/off.csv.gz:/data/off.csv.gz:ro \
+    #       forma python scripts/import_products.py \
+    #           --dump /data/off.csv.gz --dry-run
+    #
+    # `run` and not `exec`, so a nine-gigabyte read does not share the 512 MB
+    # and the two cores that are serving people. And traefik.enable=false,
+    # because a one-off container inherits the labels below — without it
+    # Traefik adds it to the load balancer for forma.meizuno.com and a share
+    # of real requests lands on a container running a Python script.
     #
     # Self-contained auth secrets (its own Google OAuth + its own HS256 signing)
     # live in their OWN SOPS-managed file, apart from the shared stack secrets.
