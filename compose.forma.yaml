@@ -35,28 +35,21 @@ services:
       # forma.env.example); the old calories.meizuno.com one can be dropped
       # once traffic has moved.
       GOOGLE_REDIRECT_URL: https://forma.meizuno.com/api/auth/google/callback
-      # Migrations are run by hand here, not on boot.
-      #
-      # The default is on, and on is right for a deployment where the schema
-      # only ever grows by a column. It stops being right for one that
-      # rewrites a table: `docker rollout` brings the new container up
-      # alongside the old one, so a migration that takes minutes takes them
-      # while the old version is still serving — and the moment it starts is
-      # whenever the container happened to come up.
-      #
-      # The cost of this switch is that a deploy no longer migrates. Pull,
-      # migrate, THEN roll:
-      #
-      #   docker compose pull forma
-      #   docker compose run --rm forma python scripts/migrate.py --check
-      #   docker compose run --rm forma python scripts/migrate.py
-      #   docker rollout forma
-      #
-      # `run --rm` starts a throwaway container from the NEW image — which is
-      # the only one that has the new migration files — without touching the
-      # service that is serving. Rolling before migrating starts a server
-      # whose code expects columns that are not there yet.
-      RUN_MIGRATIONS: "false"
+    # Migrations do NOT run on boot — the image defaults RUN_MIGRATIONS to
+    # false, because `docker rollout` brings the new container up beside the
+    # old one and a migration there runs while the previous version is still
+    # serving. Pull, migrate, THEN roll:
+    #
+    #   docker compose pull forma
+    #   docker compose run --rm forma python scripts/migrate.py --check
+    #   docker compose run --rm forma python scripts/migrate.py
+    #   docker rollout forma
+    #
+    # `run --rm` is a throwaway container from the NEW image, which is the
+    # only one carrying the new migration files; `exec` would reach the old
+    # one. Rolling first starts a server whose code expects columns that are
+    # not there yet.
+    #
     # Self-contained auth secrets (its own Google OAuth + its own HS256 signing)
     # live in their OWN SOPS-managed file, apart from the shared stack secrets.
     # env_file injects them into the container with their real names
