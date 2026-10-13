@@ -35,20 +35,23 @@ services:
       # forma.env.example); the old calories.meizuno.com one can be dropped
       # once traffic has moved.
       GOOGLE_REDIRECT_URL: https://forma.meizuno.com/api/auth/google/callback
-    # Migrations do NOT run on boot — the image defaults RUN_MIGRATIONS to
-    # false, because `docker rollout` brings the new container up beside the
-    # old one and a migration there runs while the previous version is still
-    # serving. Pull, migrate, THEN roll:
+    # Migrations run on boot, so a deploy carries its own schema:
     #
-    #   docker compose pull forma
+    #   docker compose pull forma && docker rollout forma
+    #
+    # `docker rollout` brings the new container up beside the old one, so the
+    # new version migrates while the previous one is still serving. Fine for
+    # a column. For a migration that rewrites a large table, deploy that one
+    # with RUN_MIGRATIONS=false and run it when it suits:
+    #
     #   docker compose run --rm forma python scripts/migrate.py --check
     #   docker compose run --rm forma python scripts/migrate.py
-    #   docker rollout forma
     #
     # `run --rm` is a throwaway container from the NEW image, which is the
-    # only one carrying the new migration files; `exec` would reach the old
-    # one. Rolling first starts a server whose code expects columns that are
-    # not there yet.
+    # only one carrying the new migration files; `exec` would reach the old.
+    #
+    # The PRODUCT catalogue is a different thing and is never automatic —
+    # scripts/import_products.py, by hand, with a dry run first.
     #
     # Self-contained auth secrets (its own Google OAuth + its own HS256 signing)
     # live in their OWN SOPS-managed file, apart from the shared stack secrets.
