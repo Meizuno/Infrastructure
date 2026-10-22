@@ -14,8 +14,16 @@ storage:
     dir: /data
 
 # Profiles are bulky; keep the window short on a nearly full disk.
+#
+# Both settings, because they do different things. max_query_lookback only
+# limits what a query may ask for — the blocks behind it stay on disk. The
+# compactor's retention is what deletes them; it defaults to 0 (never), and
+# without it /data grows until Pyroscope's own last-resort disk guard (delete
+# when under 10 GiB free) kicks in, by which point Postgres is short of room
+# too.
 limits:
   max_query_lookback: 72h
+  compactor_blocks_retention_period: 72h
 
 analytics:
   reporting_enabled: false

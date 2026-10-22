@@ -65,7 +65,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day` — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). `/health` is not counted. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%). |\n| **Memory** | Resident memory of the Python process. Both apps are limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
+            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range and count every request from the container's start (`increase_pure`), so they are exact right after a deploy too.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day` — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). `/health` is not counted. |\n| **p50 / p95** | Line a route's requests up from fastest to slowest: p50 is the one in the middle (the typical request), p95 the one 95% of them beat (how bad the slow ones get). Estimated from histogram buckets (5, 10, 25, 50, 100, 250, 500 ms, 1, 2.5, 5, 10, 30, 60 s), so `17.5 ms` means *somewhere between 10 and 25 ms*. With only a few requests, p95 is simply the slowest. |\n| **Total time** | Requests × their average duration — exact, not estimated. The table is sorted by it: where the server's time went. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%). |\n| **Memory** | Resident memory of the Python process. Both apps are limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
           }
         }
       ]
@@ -86,7 +86,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
+          "expr": "sum(increase_pure(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
           "instant": true
         }
       ],
@@ -136,7 +136,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (increase(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase_pure(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
           "instant": true
         }
       ],
@@ -193,7 +193,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (sum(increase(http_request_duration_seconds_count{job=\"$app\",status=~\"5xx|none\"}[$__range])) or vector(0)) / sum(increase(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
+          "expr": "100 * (sum(increase_pure(http_request_duration_seconds_count{job=\"$app\",status=~\"5xx|none\"}[$__range])) or vector(0)) / sum(increase_pure(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
           "instant": true
         }
       ],
@@ -472,25 +472,25 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (method, route) (increase(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
+          "expr": "sum by (method, route) (increase_pure(http_request_duration_seconds_count{job=\"$app\"}[$__range]))",
           "instant": true,
           "format": "table"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.5, sum by (le, method, route) (increase(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
+          "expr": "histogram_quantile(0.5, sum by (le, method, route) (increase_pure(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
           "instant": true,
           "format": "table"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.95, sum by (le, method, route) (increase(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
+          "expr": "histogram_quantile(0.95, sum by (le, method, route) (increase_pure(http_request_duration_seconds_bucket{job=\"$app\"}[$__range])))",
           "instant": true,
           "format": "table"
         },
         {
           "refId": "D",
-          "expr": "sum by (method, route) (increase(http_request_duration_seconds_sum{job=\"$app\"}[$__range]))",
+          "expr": "sum by (method, route) (increase_pure(http_request_duration_seconds_sum{job=\"$app\"}[$__range]))",
           "instant": true,
           "format": "table"
         }
