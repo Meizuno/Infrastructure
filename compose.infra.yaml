@@ -46,7 +46,14 @@ services:
     command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks: [edge]
+    # `tunnel` exists only so cloudflared can resolve the code-server sandbox by
+    # name. cloudflared is a container, so a tunnel hostname pointing at
+    # http://localhost:8080 hits ITS OWN loopback, not the host, and
+    # code-server's port is published on 127.0.0.1 only — they have to share a
+    # network. A dedicated one rather than `edge`, because putting the sandbox
+    # on edge also hands it Traefik, every app, and a Grafana that runs with no
+    # login at all. See the Code-Server repo's docker-compose.yml.
+    networks: [edge, tunnel]
     depends_on: [traefik]
     deploy:
       resources:
@@ -167,6 +174,10 @@ networks:
     name: meizuno_edge
   internal:
     name: meizuno_internal
+  # Joined by cloudflared here and, as an external network, by the code-server
+  # sandbox. Nothing else belongs on it.
+  tunnel:
+    name: meizuno_tunnel
 
 volumes:
   postgres-data:

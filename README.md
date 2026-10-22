@@ -103,6 +103,13 @@ network by service name):
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
 
+`code.<domain>` is the exception: it is **not** routed through Traefik. The
+code-server sandbox is a separate compose project, and cloudflared reaches it
+directly by container name over the `meizuno_tunnel` network, which exists for
+that one purpose — point that hostname at `http://code-server:8080`. A hostname
+of `http://localhost:8080` cannot work: cloudflared is itself a container, so
+localhost is its own loopback rather than the host's.
+
 The **Forma** app (compose service `forma`, formerly `calories`) is served at
 `forma.meizuno.com`;
 `calories.meizuno.com` is its former host and must stay in the tunnel so Traefik
