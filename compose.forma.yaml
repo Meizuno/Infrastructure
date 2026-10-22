@@ -35,9 +35,14 @@ services:
       # forma.env.example); the old calories.meizuno.com one can be dropped
       # once traffic has moved.
       GOOGLE_REDIRECT_URL: https://forma.meizuno.com/api/auth/google/callback
-      # Continuous CPU profiles → Pyroscope (compose.monitoring.yaml), shown in
-      # Grafana as service `forma`. Reached over `internal`; unset = off.
+      # Continuous CPU + memory profiles → Pyroscope (compose.monitoring.yaml),
+      # shown in Grafana as service `forma`. Reached over `internal`; unset = off.
       PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      # Prometheus metrics (request durations by route, process CPU and memory)
+      # on a port of their own. No Traefik label points at it and nothing is
+      # published, so only containers on the same networks reach it — which is
+      # where victoria-metrics scrapes it from.
+      METRICS_PORT: "9000"
     # Migrations run on boot, so a deploy carries its own schema:
     #
     #   docker compose pull forma && docker rollout forma

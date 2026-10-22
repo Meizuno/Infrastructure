@@ -62,9 +62,14 @@ services:
       # for a daily session), ~9 s per session with low reasoning effort.
       ENGLISH_OPENAI_MODEL: gpt-6-luna
       ENGLISH_OPENAI_REASONING_EFFORT: low
-      # Continuous CPU profiles → Pyroscope (compose.monitoring.yaml), shown in
-      # Grafana as service `english`. Reached over `internal`; unset = off.
+      # Continuous CPU + memory profiles → Pyroscope (compose.monitoring.yaml),
+      # shown in Grafana as service `english`. Reached over `internal`; unset = off.
       ENGLISH_PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
+      # Prometheus metrics (request durations by route, process CPU and memory)
+      # on a port of their own. No Traefik label points at it and nothing is
+      # published, so only containers on the same networks reach it — which is
+      # where victoria-metrics scrapes it from.
+      ENGLISH_METRICS_PORT: "9000"
     # Its OWN secrets (Google OAuth client, session signing key, OpenAI key,
     # sign-in allowlist) live in their OWN SOPS-managed file, apart from the
     # shared stack secrets — the same split forma uses. env_file injects them
