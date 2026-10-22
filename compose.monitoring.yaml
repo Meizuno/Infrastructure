@@ -108,7 +108,7 @@ services:
 
   node-exporter:
     <<: *infra-defaults
-    image: prom/node-exporter:v1.10.1
+    image: prom/node-exporter:v1.12.1
     container_name: node-exporter
     command:
       - --path.procfs=/host/proc
@@ -121,7 +121,16 @@ services:
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/host/root:ro,rslave
+      # Upstream suggests `:ro,rslave` so new mounts show up without a restart,
+      # but rslave requires / to be a shared or slave mount — where it is not,
+      # docker refuses to START the container ("path / is mounted on / but it
+      # is not a shared or slave mount"). Plain :ro always works; the cost is
+      # that adding a disk later needs `docker compose up -d node-exporter`.
+      - /:/host/root:ro
+      # Without this the diskstats collector logs an ERROR on every scrape
+      # ("Failed to open directory, disabling udev device properties"), which
+      # would show up as a permanent fake error in Loki.
+      - /run/udev:/run/udev:ro
     networks: [monitoring]
     deploy:
       resources:
@@ -131,7 +140,7 @@ services:
 
   postgres-exporter:
     <<: *infra-defaults
-    image: prometheuscommunity/postgres-exporter:v0.19.0
+    image: prometheuscommunity/postgres-exporter:v0.20.1
     container_name: postgres-exporter
     # DATA_SOURCE_NAME carries a password, so it lives in monitoring.env.
     # The `monitoring` role needs pg_monitor plus CONNECT on each app database —
@@ -155,7 +164,7 @@ services:
 
   redis-exporter:
     <<: *infra-defaults
-    image: oliver006/redis_exporter:v1.84.1
+    image: oliver006/redis_exporter:v1.95.0
     container_name: redis-exporter
     environment:
       REDIS_ADDR: redis://redis:6379
