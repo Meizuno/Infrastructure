@@ -1,7 +1,7 @@
 {
   "uid": "meizuno-overview",
-  "title": "Meizuno — огляд",
-  "description": "Здоров'я стеку, хост, логи помилок; Traefik, бази та власне споживання моніторингу — у згорнутих рядах. Provisioned з репозиторію: правити grafana/dashboards/meizuno-overview.json, бо файл перекриває зміни з UI.",
+  "title": "Meizuno — Overview",
+  "description": "Stack health, host, and error logs up front; Traefik, the databases and monitoring's own footprint in collapsed rows. Provisioned from git — edit grafana/dashboards/meizuno-overview.json, because the file overrides UI changes on reload.",
   "tags": [
     "meizuno",
     "provisioned"
@@ -25,19 +25,46 @@
   "panels": [
     {
       "type": "row",
-      "title": "Здоров'я стеку",
-      "collapsed": false,
+      "title": "Units and how to read this",
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
       },
+      "panels": [
+        {
+          "type": "text",
+          "title": "Units and conventions",
+          "gridPos": {
+            "h": 22,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "## Units on this dashboard\n\n| On screen | Unit | What it measures |\n|---|---|---|\n| `%` | percent | Share of a capacity: CPU across all 6 cores, RAM of total, connections of `max_connections`, 5xx of all requests. |\n| `B` `KiB` `MiB` `GiB` | bytes, **binary** | 1 KiB = 1024 B, 1 MiB = 1024 KiB. Grafana shows IEC units, so `111.9 MiB` is ~117 MB in decimal marketing units. |\n| `B/s` | bytes per second | Throughput — disk and network. |\n| `req/s` | requests per second | Traefik, averaged over 5 minutes. |\n| `s` `ms` | seconds | Request latency. |\n| `CPU s/s` | CPU-seconds per second | `1.0` means one core fully busy for the whole interval. |\n| plain number | count | Targets down, log lines, connections, Redis keys, active series. |\n\n## How to read it\n\n**Percentiles.** `p95 = 0.4 s` means 95% of requests finished faster than 0.4 s and 5% took longer. `p50` is the median. Watch p95 and p99 rather than an average — an average hides the slow tail, which is exactly the part users notice.\n\n**Rates are 5-minute averages** (`rate(...[5m])`). A short spike therefore looks smaller than it was and takes a few minutes to appear at full height. For anything sharper, narrow the time range.\n\n**Log levels** come from Loki's `detected_level`, assigned heuristically at ingest. It is dependable for plain-text logs (Go slog, uvicorn) but misses some lines from **forma** and **english**, which emit structured JSON — for those, query `| json | level =~ \"warn|error\"` instead of relying on the level filter.\n\n**Empty panels are not always broken.** `5xx share` divides by total requests, so it is blank at zero traffic; latency percentiles need a few requests to exist; `Redis hit rate` stays blank until something reads from Redis.\n\n**`Disk free — /`** reads the root filesystem explicitly. If it shows *No data*, node-exporter is not labelling the root mount as `/` — check *Free space per filesystem* below for the actual mountpoint names.\n"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Stack health",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
       "panels": []
     },
     {
       "type": "stat",
-      "title": "Таргетів лежить",
+      "title": "Targets down (count)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -46,7 +73,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 1
+        "y": 2
       },
       "targets": [
         {
@@ -87,11 +114,11 @@
           "values": false
         }
       },
-      "description": "Скільки scrape-таргетів не відповідають. Має бути 0; будь-що інше — експортер або сервіс впав."
+      "description": "Scrape targets not answering. Should be 0 — anything else means an exporter or a service is down."
     },
     {
       "type": "stat",
-      "title": "ERROR за годину",
+      "title": "Errors — last 1h (count)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -100,7 +127,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 1
+        "y": 2
       },
       "targets": [
         {
@@ -145,11 +172,11 @@
           "values": false
         }
       },
-      "description": "З усіх контейнерів стеку. Нагадування: для forma та english detected_level ловить не кожен рядок — вони пишуть JSON."
+      "description": "Across every container in the stack. Caveat: detected_level is a heuristic and misses some lines from forma and english, which log structured JSON — for those, filter with | json | level instead."
     },
     {
       "type": "stat",
-      "title": "WARN за годину",
+      "title": "Warnings — last 1h (count)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -158,7 +185,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 1
+        "y": 2
       },
       "targets": [
         {
@@ -202,7 +229,7 @@
     },
     {
       "type": "stat",
-      "title": "Аптайм хоста",
+      "title": "Host uptime",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -211,7 +238,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 1
+        "y": 2
       },
       "targets": [
         {
@@ -251,19 +278,19 @@
     },
     {
       "type": "row",
-      "title": "Хост",
+      "title": "Host",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 6
       },
       "panels": []
     },
     {
       "type": "stat",
-      "title": "CPU",
+      "title": "CPU (%)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -272,7 +299,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 6
+        "y": 7
       },
       "targets": [
         {
@@ -322,7 +349,7 @@
     },
     {
       "type": "stat",
-      "title": "RAM",
+      "title": "RAM (%)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -331,7 +358,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 6
+        "y": 7
       },
       "targets": [
         {
@@ -378,11 +405,11 @@
           "values": false
         }
       },
-      "description": "Через MemAvailable, тож кеш не вважається зайнятим."
+      "description": "Derived from MemAvailable, so page cache does not count as used."
     },
     {
       "type": "stat",
-      "title": "Вільно на диску",
+      "title": "Disk free — / (GiB)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -391,12 +418,12 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 6
+        "y": 7
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "min(node_filesystem_avail_bytes{job=\"node\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"})",
+          "expr": "node_filesystem_avail_bytes{job=\"node\",mountpoint=\"/\"}",
           "instant": true
         }
       ],
@@ -436,11 +463,11 @@
           "values": false
         }
       },
-      "description": "Мінімум по реальних ФС, а не конкретний mountpoint — панель не залежить від того, як названо корінь. Найближчий ризик стеку: у Loki немає власного обмежувача місця."
+      "description": "Free space on the ROOT filesystem. An earlier version took min() across all filesystems and ended up reporting /boot/efi (a ~100 MiB vfat partition) instead — alarming and useless. If this reads No data, node-exporter is not labelling the root mount as \"/\"; check the trend panel below for the real mountpoint names. This is the stack's nearest risk: Loki has no disk-space limiter of its own."
     },
     {
       "type": "timeseries",
-      "title": "Вільне місце — тренд",
+      "title": "Free space per filesystem (GiB)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -449,12 +476,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 11
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "node_filesystem_avail_bytes{job=\"node\",fstype!~\"tmpfs|overlay|squashfs|ramfs\"}",
+          "expr": "node_filesystem_avail_bytes{job=\"node\",fstype=~\"ext2|ext3|ext4|xfs|btrfs|vfat\"}",
           "legendFormat": "{{mountpoint}}"
         }
       ],
@@ -487,11 +514,11 @@
           "sort": "desc"
         }
       },
-      "description": "Поки алертів немає, нахил цієї лінії — єдине раннє попередження."
+      "description": "With alerting deferred, the slope of these lines is the only early warning there is. Small partitions such as /boot/efi show up here too — that is fine in a trend, it was only misleading as a headline number."
     },
     {
       "type": "timeseries",
-      "title": "CPU за режимами",
+      "title": "CPU by mode (%)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -500,7 +527,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 11
       },
       "targets": [
         {
@@ -541,11 +568,11 @@
           "sort": "desc"
         }
       },
-      "description": "idle прибрано навмисно: цікаво, ЧИМ зайнятий процесор. iowait на підйомі — диск, steal — сусід по гіпервізору."
+      "description": "idle is excluded on purpose — the question is WHAT the CPU is busy with. Rising iowait points at the disk; steal means a noisy neighbour on the hypervisor."
     },
     {
       "type": "timeseries",
-      "title": "Load average",
+      "title": "Load average (runnable procs)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -554,23 +581,23 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 19
       },
       "targets": [
         {
           "refId": "A",
           "expr": "node_load1{job=\"node\"}",
-          "legendFormat": "1 хв"
+          "legendFormat": "1m"
         },
         {
           "refId": "B",
           "expr": "node_load5{job=\"node\"}",
-          "legendFormat": "5 хв"
+          "legendFormat": "5m"
         },
         {
           "refId": "C",
           "expr": "node_load15{job=\"node\"}",
-          "legendFormat": "15 хв"
+          "legendFormat": "15m"
         }
       ],
       "fieldConfig": {
@@ -601,11 +628,11 @@
           "sort": "desc"
         }
       },
-      "description": "Порівнюй з кількістю ядер — на цьому хості їх 6."
+      "description": "Average number of processes runnable or waiting on I/O. Compare against core count — 6 on this host. Sustained load1 above 6 means a queue."
     },
     {
       "type": "timeseries",
-      "title": "Диск — читання та запис",
+      "title": "Disk throughput (B/s)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -614,18 +641,18 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 18
+        "y": 19
       },
       "targets": [
         {
           "refId": "A",
           "expr": "sum(rate(node_disk_read_bytes_total{job=\"node\"}[5m]))",
-          "legendFormat": "читання"
+          "legendFormat": "read"
         },
         {
           "refId": "B",
           "expr": "sum(rate(node_disk_written_bytes_total{job=\"node\"}[5m]))",
-          "legendFormat": "запис"
+          "legendFormat": "write"
         }
       ],
       "fieldConfig": {
@@ -660,7 +687,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Мережа",
+      "title": "Network throughput (B/s)",
       "datasource": {
         "type": "prometheus",
         "uid": "victoriametrics"
@@ -669,18 +696,18 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 18
+        "y": 19
       },
       "targets": [
         {
           "refId": "A",
           "expr": "sum(rate(node_network_receive_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[5m]))",
-          "legendFormat": "вхідний"
+          "legendFormat": "in"
         },
         {
           "refId": "B",
           "expr": "sum(rate(node_network_transmit_bytes_total{job=\"node\",device!~\"lo|veth.*|docker.*|br-.*\"}[5m]))",
-          "legendFormat": "вихідний"
+          "legendFormat": "out"
         }
       ],
       "fieldConfig": {
@@ -715,19 +742,19 @@
     },
     {
       "type": "row",
-      "title": "Помилки та попередження",
+      "title": "Errors and warnings",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 26
       },
       "panels": []
     },
     {
       "type": "timeseries",
-      "title": "Скільки warn/error за сервісами",
+      "title": "Warn/error count per service",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -736,7 +763,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 27
       },
       "targets": [
         {
@@ -781,7 +808,7 @@
     },
     {
       "type": "logs",
-      "title": "Самі рядки",
+      "title": "Log lines",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -790,7 +817,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 35
       },
       "targets": [
         {
@@ -812,18 +839,18 @@
     },
     {
       "type": "row",
-      "title": "Traefik — трафік і помилки",
+      "title": "Traefik — traffic and errors",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 47
       },
       "panels": [
         {
           "type": "stat",
-          "title": "Запитів за секунду",
+          "title": "Requests (req/s)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -832,7 +859,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 47
+            "y": 48
           },
           "targets": [
             {
@@ -872,7 +899,7 @@
         },
         {
           "type": "stat",
-          "title": "Частка 5xx",
+          "title": "5xx share (%)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -881,7 +908,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 47
+            "y": 48
           },
           "targets": [
             {
@@ -926,11 +953,11 @@
               "values": false
             }
           },
-          "description": "Порожньо при нульовому трафіку — ділення на нуль, не поломка."
+          "description": "Blank at zero traffic: the denominator is zero, not a fault."
         },
         {
           "type": "stat",
-          "title": "p95 латентності",
+          "title": "Latency p95 (s)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -939,7 +966,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 47
+            "y": 48
           },
           "targets": [
             {
@@ -987,7 +1014,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Запити за роутерами",
+          "title": "Requests per router (req/s)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -996,7 +1023,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 51
+            "y": 52
           },
           "targets": [
             {
@@ -1040,7 +1067,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Латентність",
+          "title": "Latency percentiles (s)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1049,7 +1076,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 51
+            "y": 52
           },
           "targets": [
             {
@@ -1099,7 +1126,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Відповіді за кодами",
+          "title": "Responses by status code (req/s)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1108,7 +1135,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 59
+            "y": 60
           },
           "targets": [
             {
@@ -1154,18 +1181,18 @@
     },
     {
       "type": "row",
-      "title": "Бази — Postgres і Redis",
+      "title": "Databases — Postgres and Redis",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 49
       },
       "panels": [
         {
           "type": "stat",
-          "title": "Конекшени Postgres",
+          "title": "Postgres connections (% of max)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1174,7 +1201,7 @@
             "h": 4,
             "w": 6,
             "x": 0,
-            "y": 49
+            "y": 50
           },
           "targets": [
             {
@@ -1219,11 +1246,11 @@
               "values": false
             }
           },
-          "description": "Від max_connections (100)."
+          "description": "Open backends as a share of max_connections (100 here)."
         },
         {
           "type": "stat",
-          "title": "Усі бази разом",
+          "title": "All databases combined (GiB)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1232,7 +1259,7 @@
             "h": 4,
             "w": 6,
             "x": 6,
-            "y": 49
+            "y": 50
           },
           "targets": [
             {
@@ -1272,7 +1299,7 @@
         },
         {
           "type": "stat",
-          "title": "Redis — пам'ять",
+          "title": "Redis memory (MiB)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1281,7 +1308,7 @@
             "h": 4,
             "w": 6,
             "x": 12,
-            "y": 49
+            "y": 50
           },
           "targets": [
             {
@@ -1326,11 +1353,11 @@
               "values": false
             }
           },
-          "description": "Ліміт maxmemory — 384 MB, політика noeviction: на стелі Redis почне відмовляти в записі, а не витісняти ключі."
+          "description": "maxmemory is 384 MB with policy noeviction: at the ceiling Redis starts REFUSING writes rather than evicting keys."
         },
         {
           "type": "stat",
-          "title": "Redis — hit rate",
+          "title": "Redis hit rate (%)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1339,7 +1366,7 @@
             "h": 4,
             "w": 6,
             "x": 18,
-            "y": 49
+            "y": 50
           },
           "targets": [
             {
@@ -1389,7 +1416,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Конекшени за базами",
+          "title": "Connections per database (count)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1398,7 +1425,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 53
+            "y": 54
           },
           "targets": [
             {
@@ -1442,7 +1469,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Час у запитах за базами",
+          "title": "Query time per database (% of one core)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1451,7 +1478,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 53
+            "y": 54
           },
           "targets": [
             {
@@ -1492,11 +1519,11 @@
               "sort": "desc"
             }
           },
-          "description": "Секунд CPU на секунду часу. Яка база палить найбільше. Щоб дійти до конкретного запиту — Explore і topk по queryid."
+          "description": "CPU-seconds burned per second of wall clock, per database, shown as a share of ONE core: 50% means half a core busy on queries. To reach the individual query, use Explore with topk by queryid."
         },
         {
           "type": "timeseries",
-          "title": "Розмір баз",
+          "title": "Database size (GiB)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1505,7 +1532,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 61
+            "y": 62
           },
           "targets": [
             {
@@ -1545,7 +1572,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Ключів у Redis",
+          "title": "Redis keys (count)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1554,13 +1581,13 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 61
+            "y": 62
           },
           "targets": [
             {
               "refId": "A",
               "expr": "sum(redis_db_keys)",
-              "legendFormat": "ключі"
+              "legendFormat": "keys"
             }
           ],
           "fieldConfig": {
@@ -1596,18 +1623,18 @@
     },
     {
       "type": "row",
-      "title": "Скільки їсть сам моніторинг",
+      "title": "Monitoring's own footprint",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 51
       },
       "panels": [
         {
           "type": "stat",
-          "title": "VictoriaMetrics на диску",
+          "title": "VictoriaMetrics on disk (GiB)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1616,7 +1643,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 51
+            "y": 52
           },
           "targets": [
             {
@@ -1653,11 +1680,11 @@
               "values": false
             }
           },
-          "description": "Ретенція 15 днів. Росте — дивись на кількість серій поруч."
+          "description": "Retention is 15 days. If this climbs, check active series next to it — cardinality is usually the cause."
         },
         {
           "type": "stat",
-          "title": "Активних серій",
+          "title": "Active series (count)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1666,7 +1693,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 51
+            "y": 52
           },
           "targets": [
             {
@@ -1711,11 +1738,11 @@
               "values": false
             }
           },
-          "description": "За поточну годину. Основний драйвер — pg_stat_statements: кожен унікальний queryid додає свої серії, стеля 5000 запитів."
+          "description": "Distinct time series seen this hour. The main driver is pg_stat_statements: every unique queryid adds its own series, capped at 5000 statements."
         },
         {
           "type": "stat",
-          "title": "Логів за годину",
+          "title": "Logs ingested — last 1h (MiB)",
           "datasource": {
             "type": "loki",
             "uid": "loki"
@@ -1724,7 +1751,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 51
+            "y": 52
           },
           "targets": [
             {
@@ -1765,11 +1792,11 @@
               "values": false
             }
           },
-          "description": "Рахується з самих логів, бо loki_distributor_bytes_received_total у Loki 3.6.1 немає. Ретенція 7 днів: помнож на 168, щоб прикинути стале споживання диска."
+          "description": "Computed from the logs themselves, because Loki 3.6.1 does not expose loki_distributor_bytes_received_total. Retention is 7 days, so multiply by 168 for a rough steady-state disk estimate."
         },
         {
           "type": "timeseries",
-          "title": "Розмір даних VictoriaMetrics",
+          "title": "VictoriaMetrics data size (GiB)",
           "datasource": {
             "type": "prometheus",
             "uid": "victoriametrics"
@@ -1778,7 +1805,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 55
+            "y": 56
           },
           "targets": [
             {
@@ -1822,7 +1849,7 @@
         },
         {
           "type": "timeseries",
-          "title": "Обсяг логів за сервісами",
+          "title": "Log volume per service (B/5m)",
           "datasource": {
             "type": "loki",
             "uid": "loki"
@@ -1831,7 +1858,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 55
+            "y": 56
           },
           "targets": [
             {
