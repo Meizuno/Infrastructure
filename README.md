@@ -12,38 +12,22 @@ replica per service.
 
 <sub>Recorded against the running stack.</sub>
 
-#### 🏠 Dashboard — Homepage, one landing page for every service
-
-<a href="https://home.meizuno.com"><img src="preview/homepage.gif" alt="Homepage dashboard — Apps and Infrastructure in two columns, host CPU/RAM/disk header and a live up/down dot on every tile" width="100%"></a>
-
-<sub>Host CPU/RAM/disk across the top; every tile carries a live up/down dot. Behind Cloudflare Access: <a href="https://home.meizuno.com">home.meizuno.com ↗</a></sub>
-
-#### 📈 Resource metrics — Beszel, per-host & per-container CPU/RAM/disk/net
-
-<a href="https://beszel.meizuno.com"><img src="preview/beszel.gif" alt="Beszel dashboard — CPU, memory, disk and network time-series for the host and each Docker container" width="100%"></a>
-
-<sub>Agent → hub over WebSocket; per-container stats via the Docker socket. Behind Cloudflare Access: <a href="https://beszel.meizuno.com">beszel.meizuno.com ↗</a></sub>
-
 #### 📊 Status page — Uptime Kuma, all systems operational
 
 <a href="https://status.meizuno.com/status/meizuno"><img src="preview/status.gif" alt="Meizuno status page — live heartbeats for every service, all systems operational" width="100%"></a>
 
 <sub>Every service checked on a 20s interval. Live page: <a href="https://status.meizuno.com/status/meizuno">status.meizuno.com ↗</a></sub>
 
-#### 🔭 Centralized logs — Vector → VictoriaLogs, queried with LogsQL
-
-<img src="preview/logs.gif" alt="VictoriaLogs LogsQL query and per-service aggregation" width="100%">
-
 #### 💾 Backups — nightly pg_dumpall → age-encrypted → R2, restore auto-verified
 
 <img src="preview/backup.gif" alt="Backup and restore-verification pipeline" width="100%">
 
-> <sub>Full-resolution MP4s: <a href="preview/homepage.mp4">homepage</a> · <a href="preview/beszel.mp4">beszel</a> · <a href="preview/status.mp4">status</a> · <a href="preview/logs.mp4">logs</a> · <a href="preview/backup.mp4">backup</a>.</sub>
+> <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/backup.mp4">backup</a>.</sub>
 
 ## How it works
 
 - **Two files, one project.** `compose.yaml` is a thin `include:` of
-  `compose.infra.yaml` (ingress, data, monitoring, logs) and
+  `compose.infra.yaml` (ingress, data, monitoring) and
   `compose.apps.yaml` (the application services). They merge into a single
   `meizuno` project, so `docker compose` / `docker rollout` all
   operate on the whole stack — the split is for readability, not isolation.
@@ -54,13 +38,8 @@ replica per service.
   the Cloudflare dashboard.
 - **TLS** is terminated by Cloudflare. Traefik speaks plain HTTP on `:80`; there
   is no ACME/Let's Encrypt to manage.
-- **Three networks:** `edge` (cloudflared ↔ traefik ↔ apps), `internal`
-  (apps ↔ postgres, never reachable from edge), and `logs` (vector ↔
-  victoria-logs).
-- **Centralized logs.** Vector tails every container via the Docker socket and
-  ships to VictoriaLogs (30-day retention). The log UI is at
-  `logs.meizuno.com` behind Cloudflare Access (Zero Trust), like the Traefik
-  dashboard — neither service has built-in auth, so the tunnel + Access is the gate.
+- **Two networks:** `edge` (cloudflared ↔ traefik ↔ apps) and `internal`
+  (apps ↔ postgres, never reachable from edge).
 - **One Postgres, one role per app.** Each app owns ONLY its own database and
   can CONNECT only to it (`auth_user`→`authentication`, `money_user`→
   `money_manager`, `recipes_user`→`recipes_book`, `notes_user`→`notes`), each
@@ -78,9 +57,7 @@ removes the old one. Traefik load-balances across both during the swap.
 
 This is why the five app services **must not** set `container_name:` or `ports:`
 — both would break transient scaling. Infra services (traefik, cloudflared,
-postgres, kuma, victoria-logs, vector) are not rolled and keep their fixed
-names — Vector relies on the exact `vector`/`victoria-logs` names to exclude its
-own logs.
+postgres, redis, kuma) are not rolled and keep their fixed names.
 
 > Requires each app image to define a `HEALTHCHECK` (the meizuno images do) so
 > rollout knows when the new container is ready.
@@ -122,9 +99,6 @@ network by service name):
 | `calories.meizuno.com` | `http://traefik:80`  |
 | `status.meizuno.com`   | `http://traefik:80`  |
 | `traefik.meizuno.com`  | `http://traefik:80`  |
-| `logs.meizuno.com`     | `http://traefik:80`  |
-| `beszel.meizuno.com`   | `http://traefik:80`  |
-| `home.meizuno.com`     | `http://traefik:80`  |
 
 Traefik then dispatches each Host to the right container. Put the tunnel token
 in `CLOUDFLARE_TUNNEL_TOKEN`.
@@ -218,64 +192,22 @@ setup and periodically:
 ./scripts/verify-restore.sh
 ```
 
-## Dashboard (Homepage)
+## Monitoring
 
-`homepage` is the single landing page at `home.meizuno.com`: host CPU/RAM/disk
-(the `resources` widget), per-container CPU/RAM for the infra services, app
-up/down (siteMonitor), and an Uptime-Kuma summary — plus links to everything.
-Config is committed under [`homepage/`](homepage/) (`settings`, `widgets`,
-`services`, `docker`); Homepage's own default files + `logs/` are gitignored.
+**Uptime Kuma** (`status.meizuno.com`) is the whole of it right now, and it is
+kept deliberately: it is the **alerting** layer. Every service is checked on a
+20s interval, and `scripts/backup-db.sh` pushes its result to a Kuma push
+monitor (`KUMA_PUSH_URL`), so a failed — or never-run — backup raises an alert
+too. Kuma is an infra service: `docker compose up -d kuma`, never
+`docker rollout`.
 
-Homepage has **no built-in auth**, so it must sit **behind Cloudflare Access**
-(Zero Trust), same as the Traefik/logs UIs — it lists internal services, don't
-expose it without Access.
-
-**Setup:**
-1. Add the `home.meizuno.com` tunnel hostname (→ `http://traefik:80`) and a
-   Cloudflare Access app in front of it.
-2. `docker compose up -d homepage` (infra service — `up -d`, not `docker rollout`).
-
-Host disk uses the read-only `/:/host:ro` bind (`disk: /host` in `widgets.yaml`);
-per-container stats use the read-only docker socket (`docker.yaml`). App tiles
-use `siteMonitor` because app containers roll (no stable name); infra tiles use
-`server: my-docker` + their fixed `container_name`.
-
-## Server metrics (Beszel)
-
-`beszel` (hub UI + store) and `beszel-agent` track **CPU, RAM and disk** of the
-host, plus per-container stats and network I/O. UI at `beszel.meizuno.com`
-(Beszel's own login; add a Cloudflare Access app in front for an extra gate).
-
-The agent connects **out** to the hub over the `edge` network
-(`HUB_URL=http://beszel:8090`) and authenticates with `KEY` + `TOKEN` — no
-listening socket, no exposed port, no socket-permission alignment between the two
-containers. Host disk comes from a read-only bind-mount of `/`
-(`FILESYSTEM=/host`); CPU/RAM from the shared kernel. (The hub→agent unix-socket
-mode also works but needs the hub and agent to agree on socket ownership; the
-WebSocket mode avoids that entirely — the only trade-off is that bandwidth stats
-reflect the container's interface, not the host NIC.)
-
-**Setup (once):** beszel + beszel-agent are **infra** services — update them with
-`docker compose up -d <svc>`, NOT `docker rollout <svc>` (rollout
-rollout`, which can't cleanly re-run a singleton).
-1. Add the `beszel.meizuno.com` hostname to the tunnel in the Cloudflare
-   dashboard (→ `http://traefik:80`), like the other UIs.
-2. Start the hub: `docker compose up -d beszel`.
-3. Open `beszel.meizuno.com`, create the admin account, then **Add System**
-   (the Host / Port fields are irrelevant in WebSocket mode — the agent dials
-   in). Save; the dialog shows the agent's `KEY` and `TOKEN`.
-4. Put them in the **encrypted** secrets (NOT `.env` directly — the deploy
-   regenerates `.env` from `secrets.enc.env` and would wipe a manual edit):
-   ```bash
-   ./scripts/secrets.sh edit        # add BESZEL_KEY + BESZEL_TOKEN (one line each, no quotes)
-   ./scripts/secrets.sh decrypt     # refresh .env from the encrypted source
-   ```
-5. Start the agent: `docker compose up -d beszel-agent`. It connects to the hub
-   within ~15s and the system goes green. (Until `KEY`/`TOKEN` are set it just
-   retries — harmless.)
-
-To also chart extra mounts (a data disk, etc.), add `EXTRA_FILESYSTEMS` to the
-agent with the matching mount bound in.
+**Grafana is replacing the rest.** Beszel (host/container metrics), Homepage
+(landing dashboard) and Vector → VictoriaLogs (centralized logs) were removed
+along with their volumes, so until Grafana lands there are **no host metrics and
+no centralized logs** — container logs are only the local docker `json-file`
+logs, reachable with `docker compose logs`. Removed hostnames to clean out of
+the Cloudflare tunnel: `beszel.meizuno.com`, `home.meizuno.com`,
+`logs.meizuno.com`.
 
 ## Token signing (EdDSA)
 
