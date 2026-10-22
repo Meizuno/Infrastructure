@@ -149,13 +149,15 @@ services:
     env_file:
       - path: monitoring.env
         required: false
-    # --collector.stat_statements is NOT enabled: it needs the pg_stat_statements
-    # extension, which needs `-c shared_preload_libraries=pg_stat_statements` on
-    # the postgres command plus `CREATE EXTENSION pg_stat_statements;`, and that
-    # means restarting Postgres — every app with it. Without the extension the
-    # collector fails on every single scrape ("function pg_stat_statements(
-    # boolean) does not exist"), so it stays off until that restart is planned.
+    # stat_statements needs BOTH halves in place or it fails on every scrape
+    # with "function pg_stat_statements(boolean) does not exist":
+    #   1. -c shared_preload_libraries=pg_stat_statements on postgres
+    #      (compose.infra.yaml — a postmaster setting, so it restarts Postgres)
+    #   2. CREATE EXTENSION pg_stat_statements in the `admin` database
+    # The monitoring role can read it because pg_monitor carries
+    # pg_read_all_stats, which is what exposes other roles' queries.
     command:
+      - --collector.stat_statements
       - --collector.long_running_transactions
     networks: [monitoring, internal]
     depends_on:

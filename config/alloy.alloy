@@ -34,10 +34,15 @@ discovery.relabel "containers" {
     target_label  = "service"
   }
 
-  // Drop alloy's own logs so it cannot feed itself.
+  // Drop alloy's own logs so it cannot feed itself, and code-server's, which
+  // is a dev sandbox on the same host rather than part of the stack — its
+  // output is high-volume and says nothing about whether the apps are healthy.
+  // Alloy watches the whole docker daemon, so anything else running outside the
+  // `meizuno` project lands here too; to keep ONLY the stack, replace this rule
+  // with a keep on __meta_docker_container_label_com_docker_compose_project.
   rule {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    regex         = "alloy"
+    regex         = "alloy|code-server"
     action        = "drop"
   }
 }

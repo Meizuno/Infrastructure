@@ -55,6 +55,13 @@ services:
           memory: 96M
 
   # ── Data ─────────────────────────────────────────────────────────────────-─
+  # shared_preload_libraries is a postmaster-level setting, so changing the
+  # command here RESTARTS Postgres and every app briefly loses its connections.
+  # It is what postgres-exporter's stat_statements collector needs; the
+  # extension itself still has to be created once, in the maintenance database
+  # the exporter connects to:
+  #   docker compose exec -T postgres psql -U admin -d admin \
+  #     -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
   postgres:
     image: postgres:18.4-bookworm
     container_name: postgres
@@ -66,6 +73,9 @@ services:
       -c maintenance_work_mem=128MB
       -c effective_cache_size=2GB
       -c max_connections=100
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.max=5000
+      -c pg_stat_statements.track=top
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD}
