@@ -33,6 +33,7 @@ PAIRS=(
   "secrets.enc.env:.env"
   "secrets.forma.enc.env:forma.env"
   "secrets.english.enc.env:english.env"
+  "secrets.monitoring.enc.env:monitoring.env"
 )
 AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 export SOPS_AGE_KEY_FILE="$AGE_KEY_FILE"

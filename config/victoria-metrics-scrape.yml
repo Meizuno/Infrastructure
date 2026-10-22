@@ -1,0 +1,48 @@
+# Scrape targets for VictoriaMetrics (Prometheus format — VM reads it natively,
+# so there is no Prometheus container in this stack).
+# Reachability: victoria-metrics sits on monitoring + edge + internal, which is
+# what lets one scraper see the exporters, traefik and cloudflared at once.
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # ── the stack itself ──────────────────────────────────────────────────────
+  - job_name: victoria-metrics
+    static_configs:
+      - targets: ["127.0.0.1:8428"]
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+  - job_name: pyroscope
+    static_configs:
+      - targets: ["pyroscope:4040"]
+
+  # ── host and data stores ──────────────────────────────────────────────────
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # ── ingress ───────────────────────────────────────────────────────────────
+  # Traefik serves these on its own `metrics` entrypoint (:8082), enabled in
+  # traefik/traefik.yml. Nothing is published to the host, and no router points
+  # at it, so it is reachable only from inside the edge network.
+  - job_name: traefik
+    static_configs:
+      - targets: ["traefik:8082"]
+  # cloudflared needs --metrics 0.0.0.0:2000 (set in compose.infra.yaml).
+  - job_name: cloudflared
+    static_configs:
+      - targets: ["cloudflared:2000"]

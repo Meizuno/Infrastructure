@@ -1,0 +1,231 @@
+# Monitoring — Grafana and what feeds it. Single-instance infra services, so
+# they keep fixed container_name and are deployed with `docker compose up -d`,
+# never `docker rollout`.
+#
+#   grafana            — the only UI (grafana.meizuno.com), behind Cloudflare Access
+#   victoria-metrics   — metrics store AND scraper (PromQL-compatible, one binary,
+#                        so no separate Prometheus/vmagent)
+#   loki + alloy       — logs: alloy tails every container via the docker socket,
+#                        loki stores them; Loki 3.x tags each line with
+#                        detected_level, so "show me warn+error" is one filter
+#   pyroscope          — continuous profiling store (SEE THE CAVEAT BELOW)
+#   node-exporter      — host CPU / RAM / disk / network
+#   postgres-exporter  — connections, DB sizes, slow queries, bloat
+#   redis-exporter     — hit rate, memory, keys
+#
+# Traefik and cloudflared need no container here — both expose Prometheus
+# metrics themselves; this file's companion edits switch them on
+# (traefik/traefik.yml, and --metrics on cloudflared in compose.infra.yaml).
+#
+# PYROSCOPE CAVEAT: the server stores profiles, it does not collect them.
+# Nothing will appear until either (a) each app pushes with a Pyroscope SDK
+# (pyroscope-io for Node, pyroscope for Python/Go) or (b) alloy runs its eBPF
+# profiler, which needs `privileged: true` + `pid: host` — deliberately NOT set
+# here, since it would widen the container boundary the README's security
+# posture section is built around. Decide before relying on it.
+#
+# Assembled into the `meizuno` project via compose.yaml (include:).
+
+x-infra-defaults: &infra-defaults
+  restart: unless-stopped
+
+services:
+  # ── UI ──────────────────────────────────────────────────────────────────────
+  grafana:
+    <<: *infra-defaults
+    image: grafana/grafana:12.3.0
+    container_name: grafana
+    environment:
+      GF_SERVER_ROOT_URL: https://grafana.meizuno.com
+      # Grafana has its own login; Cloudflare Access in front is the outer gate.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Datasources come from ./grafana/provisioning (committed), not clicks.
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    env_file:
+      - path: monitoring.env
+        required: false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    networks: [edge, monitoring]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.meizuno.com`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ── Metrics ─────────────────────────────────────────────────────────────────
+  victoria-metrics:
+    <<: *infra-defaults
+    image: victoriametrics/victoria-metrics:v1.136.0
+    container_name: victoria-metrics
+    command:
+      - -storageDataPath=/vmdata
+      - -retentionPeriod=15d
+      # Hard stop on writes while 2 GiB of disk is still free. The host sits at
+      # 93% — this is what keeps a metrics blow-up from filling / and taking
+      # Postgres down with it.
+      - -storage.minFreeDiskSpaceBytes=2GB
+      # VictoriaMetrics scrapes directly, so there is no Prometheus to run.
+      - -promscrape.config=/etc/vm/scrape.yml
+      - -promscrape.suppressScrapeErrors=false
+      - -loggerLevel=WARN
+    volumes:
+      - vm-data:/vmdata
+      - ./config/victoria-metrics-scrape.yml:/etc/vm/scrape.yml:ro
+    # edge → scrape traefik + cloudflared; internal → the db exporters.
+    networks: [monitoring, edge, internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  node-exporter:
+    <<: *infra-defaults
+    image: prom/node-exporter:v1.10.1
+    container_name: node-exporter
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      # Only the real filesystems; skip docker's overlay churn.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|run)($$|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|devtmpfs|overlay|squashfs|tmpfs)$$
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
+  postgres-exporter:
+    <<: *infra-defaults
+    image: prometheuscommunity/postgres-exporter:v0.19.0
+    container_name: postgres-exporter
+    # DATA_SOURCE_NAME carries a password, so it lives in monitoring.env.
+    # The `monitoring` role needs pg_monitor plus CONNECT on each app database —
+    # PUBLIC's CONNECT is revoked per database, so without the grants the
+    # exporter only sees cluster-wide stats. See monitoring.env.example.
+    env_file:
+      - path: monitoring.env
+        required: false
+    command:
+      - --collector.stat_statements
+      - --collector.long_running_transactions
+    networks: [monitoring, internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 96M
+
+  redis-exporter:
+    <<: *infra-defaults
+    image: oliver006/redis_exporter:v1.84.1
+    container_name: redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [monitoring, internal]
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+
+  # ── Logs ────────────────────────────────────────────────────────────────────
+  loki:
+    <<: *infra-defaults
+    image: grafana/loki:3.6.1
+    container_name: loki
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    user: "10001:10001"          # the image's own uid; the volume is chowned to it
+    volumes:
+      - loki-data:/loki
+      - ./config/loki.yaml:/etc/loki/loki.yaml:ro
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+  alloy:
+    <<: *infra-defaults
+    image: grafana/alloy:v1.13.1
+    container_name: alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+      - ./config/alloy.alloy:/etc/alloy/config.alloy:ro
+    networks: [monitoring]
+    depends_on: [loki]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ── Profiling ───────────────────────────────────────────────────────────────
+  # Stores profiles only — read the PYROSCOPE CAVEAT in this file's header
+  # before counting on it.
+  pyroscope:
+    <<: *infra-defaults
+    image: grafana/pyroscope:1.16.0
+    container_name: pyroscope
+    command:
+      - -config.file=/etc/pyroscope/config.yaml
+    volumes:
+      - pyroscope-data:/data
+      - ./config/pyroscope.yaml:/etc/pyroscope/config.yaml:ro
+    networks: [monitoring]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
+  monitoring:
+    name: meizuno_monitoring
+
+volumes:
+  grafana-data:
+    name: meizuno_grafana-data
+  vm-data:
+    name: meizuno_vm-data
+  loki-data:
+    name: meizuno_loki-data
+  alloy-data:
+    name: meizuno_alloy-data
+  pyroscope-data:
+    name: meizuno_pyroscope-data

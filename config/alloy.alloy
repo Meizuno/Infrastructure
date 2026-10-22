@@ -1,0 +1,71 @@
+// Alloy: discover every container on the local docker daemon and ship its logs
+// to Loki. One agent, read-only socket, no per-app configuration.
+//
+// Level handling is deliberately NOT done here: Loki 3.x sets `detected_level`
+// on ingest (discover_log_levels in config/loki.yaml), which is more reliable
+// across the stack's mixed formats (Nuxt JSON, uvicorn text, Go slog) than a
+// regex would be. Filter in Grafana with `detected_level=~"warn|error"`.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+// Turn docker's metadata into labels worth querying on. Keep this list short —
+// every label is a separate Loki stream.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+
+  // Compose service name: stable across rollout replicas, unlike the container
+  // name (meizuno-forma-91, meizuno-forma-92, ...).
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  // Drop alloy's own logs so it cannot feed itself.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "alloy"
+    action        = "drop"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = { job = "docker" }
+  forward_to = [loki.process.drop_backlog.receiver]
+}
+
+// On a first start Alloy has no saved position and reads each container's log
+// file from the BEGINNING. The stack's containers run for months, so without
+// this it would replay the whole backlog into Loki, which rejects anything
+// older than reject_old_samples_max_age (24h) with HTTP 400 — a flood of
+// errors and no usable logs. Drop the backlog here so Loki never sees it.
+// Verified against the real thing: without this stage, every batch failed.
+loki.process "drop_backlog" {
+  stage.drop {
+    older_than          = "24h"
+    drop_counter_reason = "backlog_older_than_loki_accepts"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

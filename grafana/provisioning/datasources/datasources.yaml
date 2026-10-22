@@ -1,0 +1,28 @@
+# Datasources as code — committed, so a rebuilt Grafana comes back wired up.
+# Edits here win over anything clicked in the UI on restart.
+apiVersion: 1
+
+datasources:
+  - name: VictoriaMetrics
+    uid: victoriametrics
+    # VictoriaMetrics speaks the Prometheus API, so the prometheus plugin is the
+    # right driver — no extra plugin to install.
+    type: prometheus
+    access: proxy
+    url: http://victoria-metrics:8428
+    isDefault: true
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+
+  - name: Pyroscope
+    uid: pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: http://pyroscope:4040

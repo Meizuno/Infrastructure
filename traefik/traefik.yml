@@ -3,6 +3,8 @@
 # network. There is no :443 entrypoint and no ACME/Let's Encrypt here on purpose.
 
 entryPoints:
+  metrics:
+    address: ":8082"
   web:
     address: ":80"
     # Trust the X-Forwarded-* headers cloudflared sets (notably
@@ -12,6 +14,19 @@ entryPoints:
     # docker network — nothing is published on the host.
     forwardedHeaders:
       insecure: true
+
+# Prometheus metrics on a dedicated entrypoint: RPS, latency quantiles and
+# status codes per router/service — the part of observability Beszel never had.
+# Nothing is published to the host and no router points at :8082, so it is
+# reachable only from inside the `edge` network (victoria-metrics scrapes it).
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    # Per-router labels are the useful ones here (which app is throwing 5xx);
+    # they do add series, but at ~10 routers that is noise-level.
+    addRoutersLabels: true
 
 providers:
   docker:

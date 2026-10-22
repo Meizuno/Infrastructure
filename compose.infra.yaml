@@ -40,7 +40,10 @@ services:
     image: cloudflare/cloudflared:2026.7.2
     container_name: cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
+    # --metrics exposes /metrics on :2000 inside the edge network (nothing is
+    # published to the host) for victoria-metrics: tunnel health, request
+    # counts, and whether the edge connections are actually up.
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     networks: [edge]

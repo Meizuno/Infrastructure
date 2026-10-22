@@ -1,0 +1,21 @@
+# Pyroscope, single binary ("all" target), filesystem storage.
+# NOTE: this stores profiles; something still has to SEND them — an SDK in each
+# app, or alloy's eBPF profiler (which needs privileged + pid: host, not set in
+# compose.monitoring.yaml). See that file's PYROSCOPE CAVEAT.
+target: all
+
+server:
+  http_listen_port: 4040
+  log_level: warn
+
+storage:
+  backend: filesystem
+  filesystem:
+    dir: /data
+
+# Profiles are bulky; keep the window short on a nearly full disk.
+limits:
+  max_query_lookback: 72h
+
+analytics:
+  reporting_enabled: false

@@ -1,0 +1,3 @@
+# Alert rules, contact points and notification policies as code go here
+# (apiVersion: 1 / groups: ...). Grafana logs an error if the directory is
+# missing, so this file keeps it present until the first rule lands.

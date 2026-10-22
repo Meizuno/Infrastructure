@@ -1,0 +1,18 @@
+# Dashboards as code: any .json dropped into grafana/dashboards is picked up on
+# start. Without this provider (and without the directory existing) Grafana
+# logs "can't read dashboard provisioning files from directory" on every boot.
+apiVersion: 1
+
+providers:
+  - name: meizuno
+    orgId: 1
+    folder: Meizuno
+    type: file
+    # Editing a provisioned dashboard in the UI is allowed, but the file wins on
+    # restart — treat the JSON in git as the source of truth.
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false
