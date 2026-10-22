@@ -43,8 +43,9 @@ services:
       NUXT_DATABASE_URL: postgres://chat_user:${CHAT_DB_PASSWORD}@postgres:5432/chat?sslmode=disable
       # ai-chat's on-disk state lives on one named volume mounted at /data:
       # image attachments (served at /media/{key}, no longer in Postgres) and
-      # per-level log files (info/warning/error, alongside stdout → Vector →
-      # VictoriaLogs). Both rollout replicas share it — plain file I/O, no lock.
+      # per-level log files (info/warning/error, alongside stdout — which is
+      # just the docker json-file log now that Vector/VictoriaLogs are gone).
+      # Both rollout replicas share it — plain file I/O, no lock.
       NUXT_MEDIA_DIR: /data/media
       NUXT_LOG_DIR: /data/logs
       # Code-execution sandbox, reachable only over the isolated `sandbox`

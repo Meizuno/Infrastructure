@@ -103,11 +103,11 @@
   <!-- 4 tiles: x 28,286,544,802 ; w 246 ; y 462 ; h 150 -->
   <g>
     <rect class="card" x="28"  y="462" width="230" height="150" rx="14"/>
-    <text x="46" y="490" class="name">🔭 Observability</text>
-    <text x="46" y="514" class="sub">Vector → <tspan fill="#621773" font-weight="600">VictoriaLogs</tspan> logs</text>
-    <text x="46" y="534" class="sub"><tspan fill="#0ea5e9" font-weight="600">Beszel</tspan> CPU / RAM / disk metrics</text>
-    <text x="46" y="558" class="sub"><tspan fill="#5cdd8b" font-weight="600">Uptime&#160;Kuma</tspan> status page</text>
-    <text x="46" y="582" class="tag">+ push alerts</text>
+    <text x="46" y="490" class="name">🔭 Monitoring</text>
+    <text x="46" y="514" class="sub"><tspan fill="#5cdd8b" font-weight="600">Uptime&#160;Kuma</tspan> status + alerting</text>
+    <text x="46" y="534" class="sub">push monitor for nightly backups</text>
+    <text x="46" y="558" class="sub"><tspan fill="#f46800" font-weight="600">Grafana</tspan> — planned</text>
+    <text x="46" y="582" class="tag">metrics / logs: pending</text>
   </g>
   <g>
     <rect class="card" x="286" y="462" width="230" height="150" rx="14"/>
@@ -140,14 +140,9 @@
   <!-- ── Tooling band (edge-gated internal UIs) ─────────────────────── -->
   <text x="28" y="648" class="lbl">TOOLING</text>
   <text x="1032" y="648" text-anchor="end" class="tag">🔒 behind Cloudflare Access</text>
-  <!-- Homepage -->
-  <rect class="card" x="28" y="658" width="488" height="64" rx="12"/>
-  <circle cx="48" cy="684" r="5" fill="#38bdf8"/>
-  <text x="64" y="682" class="name">Homepage</text>
-  <text x="64" y="702" class="tag">single landing page · host CPU/RAM/disk · app up/down</text>
   <!-- Code-Server -->
-  <rect class="card" x="544" y="658" width="488" height="64" rx="12"/>
-  <circle cx="564" cy="684" r="5" fill="#2496ed"/>
-  <text x="580" y="682" class="name">Code Server</text>
-  <text x="580" y="702" class="tag">browser VS Code · rootless Docker-in-Docker</text>
+  <rect class="card" x="28" y="658" width="1004" height="64" rx="12"/>
+  <circle cx="48" cy="684" r="5" fill="#2496ed"/>
+  <text x="64" y="682" class="name">Code Server</text>
+  <text x="64" y="702" class="tag">browser VS Code · rootless Docker-in-Docker</text>
 </svg>

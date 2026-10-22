@@ -4,7 +4,7 @@ name: meizuno
 # Unified stack for the meizuno ecosystem, assembled from files by concern:
 #
 #   compose.infra.yaml   — ingress (traefik, cloudflared), data (postgres,
-#                          redis), monitoring (kuma), logs (victoria-logs, vector)
+#                          redis), monitoring (kuma)
 #   compose.apps.yaml    — the SSO-delegating application services (rollout)
 #   compose.ai-chat.yaml — ai-chat + its locally-built code-execution sandbox
 #                          on an isolated (no-egress) network
