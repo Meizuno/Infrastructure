@@ -37,12 +37,29 @@ services:
     container_name: grafana
     environment:
       GF_SERVER_ROOT_URL: https://grafana.meizuno.com
-      # Grafana has its own login; Cloudflare Access in front is the outer gate.
+      # NO Grafana login at all — Cloudflare Access is the ONLY gate, exactly
+      # like code-server's `--auth none` and the Traefik/Kuma UIs. Anonymous
+      # users get Admin, and the login form and basic auth are switched off so
+      # there is no credential to guess or leak behind Access.
+      #
+      # THIS MAKES THE ACCESS APP LOAD-BEARING: anyone who reaches
+      # grafana.meizuno.com is a full admin. Do not add the tunnel hostname
+      # without an Access policy in front of it.
+      #
+      # Locked out if Access misbehaves? Flip GF_AUTH_DISABLE_LOGIN_FORM to
+      # "false", set GF_SECURITY_ADMIN_PASSWORD, and restart to get the form
+      # back.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       # Datasources come from ./grafana/provisioning (committed), not clicks.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    # Nothing required today (no admin password with anonymous auth); kept so
+    # SMTP or OAuth credentials can be added later without touching compose.
     env_file:
       - path: monitoring.env
         required: false
