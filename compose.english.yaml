@@ -62,6 +62,9 @@ services:
       # for a daily session), ~9 s per session with low reasoning effort.
       ENGLISH_OPENAI_MODEL: gpt-6-luna
       ENGLISH_OPENAI_REASONING_EFFORT: low
+      # Continuous CPU profiles → Pyroscope (compose.monitoring.yaml), shown in
+      # Grafana as service `english`. Reached over `internal`; unset = off.
+      ENGLISH_PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
     # Its OWN secrets (Google OAuth client, session signing key, OpenAI key,
     # sign-in allowlist) live in their OWN SOPS-managed file, apart from the
     # shared stack secrets — the same split forma uses. env_file injects them

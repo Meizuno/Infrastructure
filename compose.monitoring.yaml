@@ -8,7 +8,7 @@
 #   loki + alloy       — logs: alloy tails every container via the docker socket,
 #                        loki stores them; Loki 3.x tags each line with
 #                        detected_level, so "show me warn+error" is one filter
-#   pyroscope          — continuous profiling store (SEE THE CAVEAT BELOW)
+#   pyroscope          — continuous profiling store, fed by the apps' SDKs
 #   node-exporter      — host CPU / RAM / disk / network
 #   postgres-exporter  — connections, DB sizes, slow queries, bloat
 #   redis-exporter     — hit rate, memory, keys
@@ -17,12 +17,13 @@
 # metrics themselves; this file's companion edits switch them on
 # (traefik/traefik.yml, and --metrics on cloudflared in compose.infra.yaml).
 #
-# PYROSCOPE CAVEAT: the server stores profiles, it does not collect them.
-# Nothing will appear until either (a) each app pushes with a Pyroscope SDK
-# (pyroscope-io for Node, pyroscope for Python/Go) or (b) alloy runs its eBPF
-# profiler, which needs `privileged: true` + `pid: host` — deliberately NOT set
-# here, since it would widen the container boundary the README's security
-# posture section is built around. Decide before relying on it.
+# PYROSCOPE: the server stores profiles, it does not collect them. Each app
+# pushes its own with a Pyroscope SDK — today english and forma (Python,
+# pyroscope-io), switched on by the PYROSCOPE_SERVER_ADDRESS in their compose
+# files. An app without the SDK has no profiles. The alternative, alloy's eBPF
+# profiler, needs `privileged: true` + `pid: host` — deliberately NOT set here,
+# since it would widen the container boundary the README's security posture
+# section is built around.
 #
 # Assembled into the `meizuno` project via compose.yaml (include:).
 
@@ -225,8 +226,7 @@ services:
           memory: 256M
 
   # ── Profiling ───────────────────────────────────────────────────────────────
-  # Stores profiles only — read the PYROSCOPE CAVEAT in this file's header
-  # before counting on it.
+  # Stores what the apps push — see PYROSCOPE in this file's header.
   pyroscope:
     <<: *infra-defaults
     image: grafana/pyroscope:1.16.0
@@ -236,7 +236,10 @@ services:
     volumes:
       - pyroscope-data:/data
       - ./config/pyroscope.yaml:/etc/pyroscope/config.yaml:ro
-    networks: [monitoring]
+    # monitoring → Grafana reads it; internal → the apps push to it. Pyroscope
+    # joins the apps' network rather than the apps joining `monitoring`, so an
+    # app gains this one service and not alloy (docker socket) or loki.
+    networks: [monitoring, internal]
     deploy:
       resources:
         limits:

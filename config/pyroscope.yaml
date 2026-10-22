@@ -1,7 +1,7 @@
 # Pyroscope, single binary ("all" target), filesystem storage.
-# NOTE: this stores profiles; something still has to SEND them — an SDK in each
-# app, or alloy's eBPF profiler (which needs privileged + pid: host, not set in
-# compose.monitoring.yaml). See that file's PYROSCOPE CAVEAT.
+# NOTE: this stores profiles; the apps SEND them, each with a Pyroscope SDK
+# (english and forma today). alloy's eBPF profiler would need privileged +
+# pid: host, deliberately not set. See PYROSCOPE in compose.monitoring.yaml.
 target: all
 
 server:

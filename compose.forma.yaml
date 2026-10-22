@@ -35,6 +35,9 @@ services:
       # forma.env.example); the old calories.meizuno.com one can be dropped
       # once traffic has moved.
       GOOGLE_REDIRECT_URL: https://forma.meizuno.com/api/auth/google/callback
+      # Continuous CPU profiles → Pyroscope (compose.monitoring.yaml), shown in
+      # Grafana as service `forma`. Reached over `internal`; unset = off.
+      PYROSCOPE_SERVER_ADDRESS: http://pyroscope:4040
     # Migrations run on boot, so a deploy carries its own schema:
     #
     #   docker compose pull forma && docker rollout forma
