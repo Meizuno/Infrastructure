@@ -51,13 +51,18 @@ loki.source.docker "containers" {
 
 // On a first start Alloy has no saved position and reads each container's log
 // file from the BEGINNING. The stack's containers run for months, so without
-// this it would replay the whole backlog into Loki, which rejects anything
-// older than reject_old_samples_max_age (24h) with HTTP 400 — a flood of
-// errors and no usable logs. Drop the backlog here so Loki never sees it.
-// Verified against the real thing: without this stage, every batch failed.
+// this it would replay the whole backlog into Loki, which rejects old entries
+// with HTTP 400 — a flood of errors and no usable logs.
+//
+// 1h, not 24h, and that difference matters. Loki refuses old data in TWO
+// places: the distributor at reject_old_samples_max_age (24h), and the
+// ingester at a per-stream window of about 2h ("entry too far behind").
+// A 24h drop window therefore still let rejects through on both counts — and
+// matching 24h exactly also raced the boundary, producing rejects one second
+// over the line. 1h sits comfortably inside both limits.
 loki.process "drop_backlog" {
   stage.drop {
-    older_than          = "24h"
+    older_than          = "1h"
     drop_counter_reason = "backlog_older_than_loki_accepts"
   }
 

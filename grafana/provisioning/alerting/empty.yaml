@@ -1,0 +1,6 @@
+# Placeholder so the directory exists: Grafana logs an error when
+# provisioning/alerting is missing, and a warning for any file in it that is
+# not .yaml/.yml/.json (a .gitkeep got "file has invalid suffix" on every boot).
+# Replace with real alert rules — groups, contactPoints, policies.
+apiVersion: 1
+groups: []

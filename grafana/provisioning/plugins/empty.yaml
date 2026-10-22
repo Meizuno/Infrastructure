@@ -1,0 +1,4 @@
+# Same reason as alerting/empty.yaml: keep the directory present without
+# tripping Grafana's provisioning file-suffix check. No plugin apps configured.
+apiVersion: 1
+apps: []
