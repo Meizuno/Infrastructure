@@ -1,10 +1,10 @@
 // Alloy: discover every container on the local docker daemon and ship its logs
 // to Loki. One agent, read-only socket, no per-app configuration.
 //
-// Level handling is deliberately NOT done here: Loki 3.x sets `detected_level`
-// on ingest (discover_log_levels in config/loki.yaml), which is more reliable
-// across the stack's mixed formats (Nuxt JSON, uvicorn text, Go slog) than a
-// regex would be. Filter in Grafana with `detected_level=~"warn|error"`.
+// Levels are mostly left to Loki: 3.x sets `detected_level` on ingest
+// (discover_log_levels in config/loki.yaml), and reads JSON (Nuxt, Forma) and Go
+// slog right. Filter in Grafana with `detected_level=~"warn|error"`. The one
+// format it misreads is Python's plain text — see loki.process "python_text".
 
 logging {
   level  = "warn"
@@ -69,6 +69,46 @@ loki.process "drop_backlog" {
   stage.drop {
     older_than          = "1h"
     drop_counter_reason = "backlog_older_than_loki_accepts"
+  }
+
+  forward_to = [loki.process.python_text.receiver]
+}
+
+// uvicorn and English print plain "LEVEL:    message" lines, and Loki 3.6
+// files "ERROR:" under detected_level=unknown — INFO:, WARNING: and CRITICAL:
+// it reads, ERROR: it does not. So the apps' errors were invisible to every
+// warn/error filter, Forma's uvicorn ones and all of English's. The level is
+// taken from the prefix here and handed over as `level`, which Loki copies
+// into detected_level verbatim — hence the lower case, and warn rather than
+// WARNING, to match what it detects on its own everywhere else.
+loki.process "python_text" {
+  // A traceback is printed one line at a time, so without this each of its
+  // lines is a separate entry of unknown level, read bottom-up in a newest-first
+  // panel. Everything English prints carries a prefix, so a line without one
+  // continues the entry before it. Not Forma: it prints httpx's bare
+  // "HTTP Request: …" lines, which this would glue onto whatever came before,
+  // and its own handler already logs each crash as one JSON line with the
+  // traceback inside; only uvicorn's text copy of it stays line by line.
+  stage.match {
+    selector = "{service=\"english\"}"
+
+    stage.multiline {
+      firstline     = "^(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):"
+      max_wait_time = "3s"
+    }
+  }
+
+  stage.regex {
+    expression = "^(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL):\\s"
+  }
+
+  stage.template {
+    source   = "level"
+    template = "{{ if eq .Value \"WARNING\" }}warn{{ else }}{{ ToLower .Value }}{{ end }}"
+  }
+
+  stage.structured_metadata {
+    values = { level = "" }
   }
 
   forward_to = [loki.write.default.receiver]

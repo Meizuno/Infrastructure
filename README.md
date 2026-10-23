@@ -296,7 +296,7 @@ hostname is load-bearing. Datasources and dashboards are provisioned from
 | Component | What it does | Kept for |
 |---|---|---|
 | `victoria-metrics` | metrics store and scraper in one (every 30 s): exporters, Traefik, cloudflared, the apps | 15 days; stops writing under 2 GB free disk |
-| `loki` + `alloy` | Alloy tails every container's log (except its own and code-server's) into Loki | 7 days |
+| `loki` + `alloy` | Alloy tails every container's log (except its own and code-server's) into Loki; Loki tags each line's level (`detected_level`), Alloy reads it for Python's plain `ERROR:` lines, which Loki cannot, and joins English's tracebacks into one entry | 7 days |
 | `pyroscope` | CPU and memory profiles the apps push with the Pyroscope SDK | 72 hours — older blocks are deleted |
 | `node-exporter` | host CPU, memory, disk, network | — |
 | `postgres-exporter` | connections, database sizes, slow queries (`pg_stat_statements`) | — |
@@ -309,7 +309,8 @@ hostname is load-bearing. Datasources and dashboards are provisioned from
   warnings from the logs; then, collapsed, Traefik, the databases, and
   monitoring's own footprint.
 - **Meizuno — Apps** — per app: requests, p50/p95 and errors by route, the
-  server's CPU and memory, and CPU and memory flame graphs by function.
+  server's CPU and memory, its logs (lines by level, then the lines, filtered
+  by level and a text search), and CPU and memory flame graphs by function.
 - **Node Exporter Full** — the host in detail.
 
 **Instrumented apps.** Forma and English serve Prometheus metrics on a port of

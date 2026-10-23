@@ -1,7 +1,7 @@
 {
   "uid": "meizuno-apps",
   "title": "Meizuno — Apps",
-  "description": "Per app: requests by route (count, p50/p95, errors), the process's CPU and memory, and CPU/memory profiles by function. Provisioned from git — edit grafana/dashboards/meizuno-apps.json, because the file overrides UI changes on reload.",
+  "description": "Per app: requests by route (count, p50/p95, errors), the process's CPU and memory, its logs, and CPU/memory profiles by function. Provisioned from git — edit grafana/dashboards/meizuno-apps.json, because the file overrides UI changes on reload.",
   "tags": [
     "meizuno",
     "provisioned"
@@ -35,7 +35,37 @@
         "sort": 1,
         "includeAll": false,
         "multi": false,
-        "description": "An app with its own /metrics (port 9000). Its Pyroscope service_name is the same name."
+        "description": "An app with its own /metrics (port 9000). Its Pyroscope service_name and its Loki service label are the same name."
+      },
+      {
+        "name": "level",
+        "label": "Log level",
+        "type": "custom",
+        "query": "critical,error,warn,info,debug,unknown",
+        "options": [],
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "description": "Loki's detected_level. Filters the Logs row only."
+      },
+      {
+        "name": "search",
+        "label": "Log search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Plain text, any case. Filters the Logs row only."
       }
     ]
   },
@@ -58,14 +88,14 @@
           "type": "text",
           "title": "How to read this",
           "gridPos": {
-            "h": 20,
+            "h": 27,
             "w": 24,
             "x": 0,
             "y": 1
           },
           "options": {
             "mode": "markdown",
-            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range and count every request from the container's start (`increase_pure`), so they are exact right after a deploy too.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day` — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). `/health` is not counted. |\n| **p50 / p95** | Line a route's requests up from fastest to slowest: p50 is the one in the middle (the typical request), p95 the one 95% of them beat (how bad the slow ones get). Estimated from histogram buckets (5, 10, 25, 50, 100, 250, 500 ms, 1, 2.5, 5, 10, 30, 60 s), so `17.5 ms` means *somewhere between 10 and 25 ms*. With only a few requests, p95 is simply the slowest. |\n| **Total time** | Requests × their average duration — exact, not estimated. The table is sorted by it: where the server's time went. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%). |\n| **Memory** | Resident memory of the Python process. Both apps are limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
+            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range and count every request from the container's start (`increase_pure`), so they are exact right after a deploy too.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day` — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). `/health` is not counted. |\n| **p50 / p95** | Line a route's requests up from fastest to slowest: p50 is the one in the middle (the typical request), p95 the one 95% of them beat (how bad the slow ones get). Estimated from histogram buckets (5, 10, 25, 50, 100, 250, 500 ms, 1, 2.5, 5, 10, 30, 60 s), so `17.5 ms` means *somewhere between 10 and 25 ms*. With only a few requests, p95 is simply the slowest. |\n| **Total time** | Requests × their average duration — exact, not estimated. The table is sorted by it: where the server's time went. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%). |\n| **Memory** | Resident memory of the Python process. Both apps are limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Logs\n\nThe app's own output, from every container it ran in during the range — a rollout's old container included. **Log level** and **Log search** above filter both panels; the search is plain text, any case.\n\n- **level** is Loki's `detected_level`. Forma's JSON lines carry their own; English's and uvicorn's text lines get it from their `ERROR:` / `WARNING:` prefix (Alloy reads it). `unknown` is a line with no level at all — in Forma mostly httpx's `HTTP Request: …`, and the text copy of a traceback whose JSON line is already under error.\n- An English traceback is **one** entry, under the `ERROR:` line that announced it. Forma logs a crash as one JSON line, `unhandled_error`, with the traceback in its `exception` field.\n- Click a line for its fields; **Show context** gives the lines around it.\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
           }
         }
       ]
@@ -828,13 +858,214 @@
     },
     {
       "type": "row",
-      "title": "Profiles by function (Pyroscope)",
+      "title": "Logs",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 42
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Log lines by level",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "maxDataPoints": 150,
+      "interval": "30s",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "sum by (detected_level) (count_over_time({service=\"$app\"} | detected_level =~ `${level:regex}` |~ `(?i)${search:regex}` [$__auto]))",
+          "legendFormat": "{{detected_level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "critical"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warn"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "info"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "debug"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unknown"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Lines per time bucket, by level; the filters above apply. A red bar is where to look in the lines below."
+    },
+    {
+      "type": "logs",
+      "title": "Log lines",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service=\"$app\"} | detected_level =~ `${level:regex}` |~ `(?i)${search:regex}`",
+          "maxLines": 1000
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "description": "Newest first, up to 1000 lines: narrow the time range or search to reach older ones."
+    },
+    {
+      "type": "row",
+      "title": "Profiles by function (Pyroscope)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 64
       },
       "panels": []
     },
@@ -849,7 +1080,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 65
       },
       "targets": [
         {
@@ -877,7 +1108,7 @@
         "h": 14,
         "w": 12,
         "x": 0,
-        "y": 57
+        "y": 79
       },
       "targets": [
         {
@@ -905,7 +1136,7 @@
         "h": 14,
         "w": 12,
         "x": 12,
-        "y": 57
+        "y": 79
       },
       "targets": [
         {
