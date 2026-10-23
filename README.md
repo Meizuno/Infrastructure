@@ -1,11 +1,12 @@
 # Infrastructure
 
 A single Docker Compose stack that runs the whole **meizuno** ecosystem behind
-**Traefik** and a **Cloudflare Tunnel**, with **zero-downtime deploys** at one
-replica per service.
+**Traefik** and a **Cloudflare Tunnel**: zero-downtime deploys at one replica
+per service, a nightly backup that is restored and checked before it counts,
+and Grafana watching all of it.
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="meizuno infrastructure — Cloudflare → Traefik → apps → Postgres, with observability, backups, delivery and secrets" width="100%">
+  <img src="docs/architecture.svg" alt="meizuno infrastructure — Cloudflare → cloudflared → Traefik → seven apps → Postgres and Redis, with observability, backups, delivery, secrets and the Access-gated tooling" width="100%">
 </p>
 
 ## In action
@@ -24,28 +25,77 @@ replica per service.
 
 > <sub>Full-resolution MP4s: <a href="preview/status.mp4">status</a> · <a href="preview/backup.mp4">backup</a>.</sub>
 
+## What runs here
+
+**Applications** — deployed with `docker rollout`, no fixed container names:
+
+| Service | Host | What it is | Database |
+|---|---|---|---|
+| `authentication` | `auth.meizuno.com` | Go SSO: JWT access + refresh tokens, Google OAuth | `authentication` |
+| `ai-chat` | `chat.meizuno.com` | Nuxt chat over OpenAI, MCP hub, runs code in `sandbox` | `chat`, plus files in `meizuno_ai-chat-data` |
+| `money-manager` | `money.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `money_manager` |
+| `recipes-book` | `recipes.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `recipes_book` |
+| `notes` | `notes.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `notes` |
+| `forma` | `forma.meizuno.com` | FastAPI + Vue: food and body diary with an assistant; its own Google OAuth | `forma` |
+| `english` | `english.meizuno.com` | FastAPI + Vue: daily English practice over OpenAI; its own Google OAuth | `english` |
+| `sandbox` | — | Python runner for ai-chat's `run_code`, built from `./sandbox`, no network | — |
+
+**Infrastructure and monitoring** — single instances with fixed names, applied
+with `docker compose up -d <service>`:
+
+| Service | Host | What it is |
+|---|---|---|
+| `cloudflared` | — | the tunnel; the only way in |
+| `traefik` | `traefik.meizuno.com` (dashboard) | the reverse proxy |
+| `postgres` | — | PostgreSQL 18, one role and one database per app |
+| `redis` | — | Redis 8, password-protected; no service in these files is wired to it yet |
+| `grafana` | `grafana.meizuno.com` | every dashboard — see [Monitoring](#monitoring) |
+| `kuma` | `status.meizuno.com` | Uptime Kuma: uptime checks, alerts, the backup's push monitor |
+| `victoria-metrics`, `loki`, `alloy`, `pyroscope`, `node-exporter`, `postgres-exporter`, `redis-exporter` | — | what feeds Grafana — see [Monitoring](#monitoring) |
+
 ## How it works
 
-- **Two files, one project.** `compose.yaml` is a thin `include:` of
-  `compose.infra.yaml` (ingress, data, monitoring) and
-  `compose.apps.yaml` (the application services). They merge into a single
-  `meizuno` project, so `docker compose` / `docker rollout` all
-  operate on the whole stack — the split is for readability, not isolation.
-- **No host ports.** `cloudflared` reaches Traefik over the `edge` docker
-  network, so nothing is published on the VM. The only way in is the tunnel.
+- **Files by concern, one project.** `compose.yaml` is a thin `include:` of
+  the files below. They merge into a single `meizuno` project, so
+  `docker compose` and `docker rollout` see the whole stack — the split is for
+  reading, not isolation.
+
+  | File | Holds |
+  |---|---|
+  | `compose.infra.yaml` | ingress (`traefik`, `cloudflared`) and data (`postgres`, `redis`) |
+  | `compose.apps.yaml` | the SSO apps: `authentication`, `money-manager`, `recipes-book`, `notes` |
+  | `compose.ai-chat.yaml` | `ai-chat` and its `sandbox` |
+  | `compose.forma.yaml` | `forma` |
+  | `compose.english.yaml` | `english` |
+  | `compose.monitoring.yaml` | Grafana, what feeds it, and Uptime Kuma |
+
+- **No host ports.** `cloudflared` reaches Traefik over a docker network, so
+  nothing is published on the VM.
 - **Traefik** is the single reverse proxy. Each app declares its hostname in
-  labels (`Host(\`chat.meizuno.com\`)`), so routing lives in this repo — not in
+  labels (`Host(\`chat.meizuno.com\`)`), so routing lives in this repo, not in
   the Cloudflare dashboard.
-- **TLS** is terminated by Cloudflare. Traefik speaks plain HTTP on `:80`; there
-  is no ACME/Let's Encrypt to manage.
-- **Two networks:** `edge` (cloudflared ↔ traefik ↔ apps) and `internal`
-  (apps ↔ postgres, never reachable from edge).
-- **One Postgres, one role per app.** Each app owns ONLY its own database and
-  can CONNECT only to it (`auth_user`→`authentication`, `money_user`→
-  `money_manager`, `recipes_user`→`recipes_book`, `notes_user`→`notes`), each
-  with its own password. A leaked app password is confined to that app's data —
-  it can't read, write, or drop another app's schema. ai-chat is stateless and
-  owns no database.
+- **TLS** is terminated by Cloudflare. Traefik speaks plain HTTP on `:80`;
+  there is no ACME to manage.
+- **Networks**, each joined only by what needs it:
+
+  | Network | Who is on it | For |
+  |---|---|---|
+  | `edge` | cloudflared, Traefik, the apps, Grafana, Kuma, VictoriaMetrics | ingress, and scraping Traefik, cloudflared and the apps' metrics |
+  | `internal` | the apps, Postgres, Redis, the exporters, Pyroscope, VictoriaMetrics | data; never reachable from `edge` alone |
+  | `monitoring` | Grafana and everything that feeds it | metrics, logs, profiles |
+  | `sandbox` | ai-chat and the sandbox, nothing else | `internal: true` — no internet, no host |
+  | `tunnel` | cloudflared and the code-server sandbox | the one hostname that bypasses Traefik |
+
+- **One Postgres, one role per app.** Each app owns only its own database and
+  can CONNECT only to it, with its own password: `auth_user` → `authentication`,
+  `money_user` → `money_manager`, `recipes_user` → `recipes_book`,
+  `notes_user` → `notes`, `forma_user` → `forma`, `chat_user` → `chat`,
+  `english_user` → `english`. A leaked app password is confined to that app's
+  data. A read-only `monitoring` role (`pg_monitor`) serves postgres-exporter.
+- **Two ways of signing in.** The four Nuxt apps delegate to `authentication`
+  and validate every request against it (see [Token signing](#token-signing-eddsa)).
+  Forma and English are self-contained: their own Google OAuth client, their own
+  signed session cookie, their own secrets file.
 
 ## Zero-downtime with one replica
 
@@ -55,90 +105,109 @@ To get zero downtime while keeping a single steady-state replica, deploys use
 a service to **2**, waits for the new container to become **healthy**, then
 removes the old one. Traefik load-balances across both during the swap.
 
-This is why the five app services **must not** set `container_name:` or `ports:`
-— both would break transient scaling. Infra services (traefik, cloudflared,
-postgres, redis, kuma) are not rolled and keep their fixed names.
+This is why the app services **must not** set `container_name:` or `ports:` —
+both would break transient scaling. Infrastructure and monitoring services are
+never rolled and keep their fixed names.
 
-> Requires each app image to define a `HEALTHCHECK` (the meizuno images do) so
-> rollout knows when the new container is ready.
+Before the old container goes, the `docker-rollout.pre-stop-hook` label touches
+`/tmp/drain`; the app's health endpoint then answers 503, Traefik's load-balancer
+healthcheck takes it out of the pool, and a short sleep lets in-flight requests
+finish. Each app image defines a `HEALTHCHECK`, which is how rollout knows the
+new container is ready.
 
 ## Setup
 
+On a fresh host:
+
 ```bash
-# 1. Prereqs (Docker + Compose v2 already installed on the host)
+# 1. Prereqs (Docker + Compose v2 already installed)
 ./scripts/install-prereqs.sh        # docker-rollout plugin + UDP buffers for cloudflared QUIC
 
-# 2. Config
-cp .env.example .env                 # fill in every value
+# 2. Secrets and config
+./scripts/secrets.sh decrypt        # .env, forma.env, english.env from the SOPS files
+                                    # (or copy each *.env.example and fill it in)
+cp monitoring.env.example monitoring.env
 cp config/ai-chat.yml.example config/ai-chat.yml
 
-# 3. First boot
-docker compose up -d                 # infra + apps
+# 3. First boot — --build for the locally built sandbox
+docker compose up -d --build
 docker compose ps
 ```
 
-The Traefik dashboard and the logs UI have no built-in auth — gate them at the
-edge with **Cloudflare Access** (Zero Trust) on `traefik.<domain>` and
-`logs.<domain>`, the same way the other dashboards are protected.
+Then, once:
+
+- **Postgres roles** — `postgres/init/01-init.sh` creates every app's role and
+  database on a fresh volume, but see the [known issue](#notes--caveats) about
+  three of its passwords.
+- **The monitoring role** for postgres-exporter — the SQL is in
+  `monitoring.env.example`.
+- **Uptime Kuma** — open `status.meizuno.com`, create the admin, the monitors,
+  and a **push** monitor for the backup; its internal URL goes in `.env` as
+  `KUMA_PUSH_URL`.
+- **The backup timer** — see [Backups](#backups-postgres--cloudflare-r2).
 
 ### Cloudflare dashboard (token-mode tunnel)
 
 In **Zero Trust → Networks → Tunnels → your tunnel → Public Hostnames**, point
-**every** hostname at the proxy (Traefik discovers `cloudflared` on the `edge`
-network by service name):
+every hostname at the proxy — Traefik is reachable from `cloudflared` by its
+service name:
 
-| Hostname               | Service              |
-|------------------------|----------------------|
-| `chat.meizuno.com`     | `http://traefik:80`  |
-| `money.meizuno.com`    | `http://traefik:80`  |
-| `recipes.meizuno.com`  | `http://traefik:80`  |
-| `notes.meizuno.com`    | `http://traefik:80`  |
-| `auth.meizuno.com`     | `http://traefik:80`  |
-| `forma.meizuno.com`    | `http://traefik:80`  |
-| `english.meizuno.com`  | `http://traefik:80`  |
-| `calories.meizuno.com` | `http://traefik:80`  |
-| `status.meizuno.com`   | `http://traefik:80`  |
-| `traefik.meizuno.com`  | `http://traefik:80`  |
+| Hostname               | Service                     |
+|------------------------|-----------------------------|
+| `auth.meizuno.com`     | `http://traefik:80`         |
+| `chat.meizuno.com`     | `http://traefik:80`         |
+| `money.meizuno.com`    | `http://traefik:80`         |
+| `recipes.meizuno.com`  | `http://traefik:80`         |
+| `notes.meizuno.com`    | `http://traefik:80`         |
+| `forma.meizuno.com`    | `http://traefik:80`         |
+| `calories.meizuno.com` | `http://traefik:80`         |
+| `english.meizuno.com`  | `http://traefik:80`         |
+| `status.meizuno.com`   | `http://traefik:80`         |
+| `grafana.meizuno.com`  | `http://traefik:80`         |
+| `traefik.meizuno.com`  | `http://traefik:80`         |
+| `code.meizuno.com`     | `http://code-server:8080`   |
 
-Traefik then dispatches each Host to the right container. Put the tunnel token
-in `CLOUDFLARE_TUNNEL_TOKEN`.
+Put the tunnel token in `CLOUDFLARE_TUNNEL_TOKEN`.
 
-`code.<domain>` is the exception: it is **not** routed through Traefik. The
-code-server sandbox is a separate compose project, and cloudflared reaches it
-directly by container name over the `meizuno_tunnel` network, which exists for
-that one purpose — point that hostname at `http://code-server:8080`. A hostname
-of `http://localhost:8080` cannot work: cloudflared is itself a container, so
-localhost is its own loopback rather than the host's.
+**Cloudflare Access** is the only gate in front of `grafana`, `traefik` and
+`code`: Grafana runs with anonymous admin and no login form, the Traefik
+dashboard has no auth, and code-server runs `--auth none`. Each of those
+hostnames needs an Access policy before it is added to the tunnel. Kuma has a
+login of its own.
 
-The **Forma** app (compose service `forma`, formerly `calories`) is served at
-`forma.meizuno.com`;
-`calories.meizuno.com` is its former host and must stay in the tunnel so Traefik
-can answer it with a **301** to the new one (`compose.forma.yaml` labels).
-Only the canonical host serves the app — Forma signs host-only cookies and has a
-single Google OAuth redirect URI, so serving both would break login.
+`code.meizuno.com` is the exception to the routing: it does **not** go through
+Traefik. The code-server sandbox is a separate compose project, and cloudflared
+reaches it by container name over the `meizuno_tunnel` network, which exists for
+that one purpose. `http://localhost:8080` cannot work — cloudflared is itself a
+container, so localhost is its own loopback.
+
+`calories.meizuno.com` is Forma's former host. It stays in the tunnel so Traefik
+can answer it with a **301** to `forma.meizuno.com` (labels in
+`compose.forma.yaml`). Only the canonical host serves the app: Forma signs
+host-only cookies and has a single Google OAuth redirect URI.
 
 ## Deploy
 
-Apps are deployed with **`docker rollout <service>`** — it starts a second
-replica, waits for it to become healthy, then **drains** the old one (the
-`docker-rollout.pre-stop-hook` label touches `/tmp/drain` → `/api/health`
-returns 503 → Traefik's loadbalancer healthcheck pulls it from the pool → the
-sleep lets in-flight requests finish) before removing it. Real zero-downtime,
-no CLI flags — the hook lives on the service labels. Wire `docker rollout
-<service>` into each app's CI as the last step (SSH to the host).
-
-The full sequence a deploy needs (CI should cover all four):
+**Apps.** Each app's CI runs its tests, builds and pushes the image to GHCR,
+and then deploys over SSH — Forma's and English's deploy workflows do exactly
+this, and a failing test stops the rollout:
 
 ```bash
-# 1. Materialize .env from the encrypted source (if using SOPS)
-sops -d secrets.enc.env > .env && chmod 600 .env
-# 2. Pull the new image(s)
-docker compose pull ai-chat
-# 3. Reconcile infra (traefik, postgres, cloudflared, monitoring)
-docker compose up -d
-# 4. Zero-downtime rollout of the app(s)
-docker rollout ai-chat
+docker compose pull forma && docker rollout forma
 ```
+
+**This repo is never deployed by CI** — its workflow only validates the compose
+files. On the host, `git pull`, then apply each kind of change the way it needs:
+
+| What changed | Apply with |
+|---|---|
+| a service's definition in `compose*.yaml` | `docker compose up -d <service>` — recreates only what changed |
+| a file mounted from `config/` (scrape config, Loki, Alloy, Pyroscope) | `docker compose restart <service>` — compose sees no change in a file it mounts, so `up -d` does nothing |
+| `grafana/dashboards/*.json` | nothing — Grafana re-reads them every 30 s |
+| `grafana/provisioning/` (datasources) | `docker compose restart grafana` |
+| `scripts/` | nothing — the backup timer runs them from this checkout |
+| `sandbox/` | `docker compose up -d --build sandbox` |
+| a secret | `./scripts/secrets.sh decrypt`, then `up -d` the service that reads it |
 
 ## Rollback
 
@@ -151,70 +220,118 @@ docker compose pull ai-chat && docker rollout ai-chat
 
 ## Backups (Postgres → Cloudflare R2)
 
-`scripts/backup-db.sh` runs `pg_dumpall` (roles + every database) inside the
-running `postgres` container, gzips it, **encrypts it client-side with age**, and
-uploads it off-host to **Cloudflare R2** via a throwaway `amazon/aws-cli`
-container. R2 only ever stores ciphertext, so a leaked R2 token cannot read the
-data or the role password hashes. The dump is encrypted in the pipe — plaintext
-never touches disk. The age recipient defaults to the host SOPS age key (override
-with `BACKUP_AGE_RECIPIENT`). Set `KUMA_PUSH_URL` to an Uptime-Kuma push monitor
-and the run pings it up/down, so a failed **or never-run** backup alerts.
+`scripts/backup-db.sh` runs nightly from a systemd timer (03:30 UTC). It runs
+`pg_dumpall` (roles + every database) inside the running `postgres` container,
+gzips it, **encrypts it client-side with age**, and uploads it to **Cloudflare
+R2** through a throwaway `amazon/aws-cli` container. R2 only ever stores
+ciphertext, so a leaked R2 token can read neither the data nor the role password
+hashes; the plaintext never touches disk. The age recipient defaults to the
+host's SOPS age key (override with `BACKUP_AGE_RECIPIENT`).
+
+**A backup counts only once it has been restored.** After the upload the script
+checks that the object in R2 is this run's — byte count against the local
+file — and then runs `scripts/verify-restore.sh` on it:
+
+- the dump is restored into a **throwaway** Postgres, never the live one,
+  created with the live cluster's superuser (`POSTGRES_SUPERUSER`, default
+  `admin`) as its first user — exactly as a real restore into a fresh stack
+  would be. The dump records who granted each role membership
+  (`… GRANTED BY admin`), and under any other first user those grants fail;
+- it waits for that server over TCP, not the socket — the image's entrypoint
+  runs a temporary socket-only server during init, and a restore started
+  against it lands in the gap when it stops;
+- it fails if an expected database is missing (`authentication`,
+  `money_manager`, `recipes_book`, `notes`, `forma`), if one restored no
+  tables, or if psql reported an error other than "already exists";
+- the container **and its volume** are removed on exit — without `-v` every
+  run left a full copy of the restored databases on the host.
+
+The result goes to the Uptime Kuma push monitor (`KUMA_PUSH_URL`): `ok`, or the
+stage, the exit code and the first reason — `verify-failed-1: notes missing
+from the restore`. A backup that failed, or never ran, raises an alert, and the
+event shows in Grafana's uptime row.
 
 **Setup (once):**
 1. Create an R2 bucket and an R2 **API token** (Object Read & Write) → it gives
    an Access Key ID / Secret Access Key and an endpoint
    `https://<account-id>.r2.cloudflarestorage.com`.
 2. Fill `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-   (and optional `R2_PREFIX`) in `.env`.
+   (and optionally `R2_PREFIX`, default `postgres`) in `.env`.
 3. Install the daily timer:
    ```bash
    sudo cp systemd/meizuno-db-backup.{service,timer} /etc/systemd/system/
    sudo systemctl daemon-reload
    sudo systemctl enable --now meizuno-db-backup.timer
    systemctl list-timers meizuno-db-backup.timer     # confirm next run
-   ./scripts/backup-db.sh                             # one manual run to verify
+   sudo systemctl start meizuno-db-backup.service    # one run now; takes a few minutes
+   journalctl -u meizuno-db-backup.service -n 25 --no-pager
    ```
-   (Adjust `WorkingDirectory`/`ExecStart` paths in the unit if your stack dir
-   differs from `/home/debian/servers/meizuno`.)
+   (Adjust `WorkingDirectory`/`ExecStart` in the unit if your stack dir differs
+   from `/home/debian/servers/meizuno`.)
 
-**Retention:** set an R2 **lifecycle rule** on the bucket (e.g. delete objects
-older than 30 days) — simpler and safer than pruning from the box.
+**Retention:** an R2 **lifecycle rule** on the bucket (e.g. delete objects older
+than 30 days) — simpler and safer than pruning from the box.
 
-**Restore** (into a fresh/empty Postgres) — decrypt with the age key first:
+**Restore** (into a fresh, empty Postgres) — decrypt with the age key first:
 ```bash
 aws s3 cp s3://$R2_BUCKET/postgres/<file>.sql.gz.age - --endpoint-url $R2_ENDPOINT \
   | age -d -i ~/.config/sops/age/keys.txt | gunzip \
   | docker compose exec -T postgres psql -U admin -d postgres
 ```
-(Losing the age key means the backups are unrecoverable — keep it backed up, the
-same key that decrypts `secrets.enc.env`.)
+(Losing the age key makes the backups unrecoverable — keep it backed up; it is
+the same key that decrypts the SOPS files.)
 
-**Verify the backup restores** (a backup you've never restored isn't a backup).
-`scripts/verify-restore.sh` pulls the newest dump (or a key you pass), restores
-it into a **throwaway** Postgres container (never the live DB), and prints the
-databases, roles, and per-DB table/row counts so you can eyeball that the data
-is really there. The temp container is removed on exit. Run it after first
-setup and periodically:
+**Verify by hand** at any time — the newest dump, or a key you pass:
 ```bash
 ./scripts/verify-restore.sh
 ```
 
 ## Monitoring
 
-**Uptime Kuma** (`status.meizuno.com`) is the whole of it right now, and it is
-kept deliberately: it is the **alerting** layer. Every service is checked on a
-20s interval, and `scripts/backup-db.sh` pushes its result to a Kuma push
-monitor (`KUMA_PUSH_URL`), so a failed — or never-run — backup raises an alert
-too. Kuma lives in `compose.monitoring.yaml` and is a single-instance service:
-`docker compose up -d kuma`, never `docker rollout`.
+**Grafana** at `grafana.meizuno.com` is the only UI. It runs with no login of
+its own — anonymous users are Admin — so the Cloudflare Access policy on that
+hostname is load-bearing. Datasources and dashboards are provisioned from
+`grafana/`, so a rebuilt Grafana comes back wired up.
 
-**Grafana is replacing the rest.** Beszel (host/container metrics), Homepage
-(landing dashboard) and Vector → VictoriaLogs (centralized logs) were removed
-along with their volumes, so until Grafana lands there are **no host metrics and
-no centralized logs** — container logs are only the local docker `json-file`
-logs, reachable with `docker compose logs`. Removed hostnames to clean out of
-the Cloudflare tunnel: `beszel.meizuno.com`, `home.meizuno.com`,
-`logs.meizuno.com`.
+| Component | What it does | Kept for |
+|---|---|---|
+| `victoria-metrics` | metrics store and scraper in one (every 30 s): exporters, Traefik, cloudflared, the apps | 15 days; stops writing under 2 GB free disk |
+| `loki` + `alloy` | Alloy tails every container's log (except its own and code-server's) into Loki | 7 days |
+| `pyroscope` | CPU and memory profiles the apps push with the Pyroscope SDK | 72 hours — older blocks are deleted |
+| `node-exporter` | host CPU, memory, disk, network | — |
+| `postgres-exporter` | connections, database sizes, slow queries (`pg_stat_statements`) | — |
+| `redis-exporter` | hit rate, memory, keys | — |
+| `kuma` | uptime checks, alerts, the backup's push monitor | Kuma's own history |
+
+**Dashboards:**
+- **Meizuno — Overview** — stack health; an **uptime row** read from Kuma (its
+  quick stats and every status change with Kuma's own message); host; errors and
+  warnings from the logs; then, collapsed, Traefik, the databases, and
+  monitoring's own footprint.
+- **Meizuno — Apps** — per app: requests, p50/p95 and errors by route, the
+  server's CPU and memory, and CPU and memory flame graphs by function.
+- **Node Exporter Full** — the host in detail.
+
+**Instrumented apps.** Forma and English serve Prometheus metrics on a port of
+their own (`:9000`, `METRICS_PORT`) that no Traefik router points at, and push
+profiles to Pyroscope (`PYROSCOPE_SERVER_ADDRESS`). Both work with several
+uvicorn workers: one worker serves the port and reports all of them. The other
+apps are not instrumented yet — they appear through Traefik's per-router
+figures and their logs.
+
+**The uptime row** reads Uptime Kuma's SQLite file through the
+`frser-sqlite-datasource` plugin, installed on start by
+`GF_PLUGINS_PREINSTALL_SYNC`. The Kuma volume is mounted into Grafana
+read-only and opened with `mode=ro` — but it is the whole of Kuma's database,
+notification settings included, in front of anybody who can open Grafana.
+
+**How fresh:** a figure reaches Grafana up to ~60 s after it happened — the
+30 s scrape interval plus the 30 s VictoriaMetrics holds back from queries.
+Profiles arrive within ~10–20 s, logs within seconds.
+
+**Kuma is the alerting layer.** Grafana alerting is not set up; Kuma is what
+notifies. It lives in `compose.monitoring.yaml`: `docker compose up -d kuma`,
+never `docker rollout`.
 
 ## Token signing (EdDSA)
 
@@ -267,21 +384,23 @@ half is kept, and only to verify already-issued tokens.
 
 ## Secrets at rest (SOPS + age)
 
-Secrets can be kept **encrypted at rest** with [SOPS](https://github.com/getsops/sops)
-+ [age], so the canonical secrets file is safe to commit and safe in host
-snapshots/backups — only values are encrypted, keys stay readable for diffs.
+Secrets are kept **encrypted at rest** with [SOPS](https://github.com/getsops/sops)
++ [age], so the canonical secrets files are safe to commit and safe in host
+snapshots and backups — only values are encrypted, keys stay readable for diffs.
 
 - `secrets.enc.env` — canonical, **committed**, values encrypted.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
-  Regenerate it on deploy with `sops -d secrets.enc.env > .env`.
-- **Per-app files.** An app can keep its own secrets apart from the shared stack:
-  `secrets.forma.enc.env` → `forma.env` (loaded by `compose.forma.yaml`
-  via `env_file`). `./scripts/secrets.sh decrypt` materializes **all** of them;
-  edit one with `./scripts/secrets.sh edit forma`. (forma's DB password
-  stays in the main `.env` — Postgres init reads it too.)
+- **Per-app files** for the self-contained apps: `secrets.forma.enc.env` →
+  `forma.env` and `secrets.english.enc.env` → `english.env`, each loaded by its
+  compose file through `env_file`. Their database passwords stay in the main
+  `.env`, because Postgres init reads them too.
+- `monitoring.env` — postgres-exporter's connection string (see
+  `monitoring.env.example`); plaintext, gitignored.
+- `./scripts/secrets.sh decrypt` materializes **all** the SOPS files; edit one
+  with `./scripts/secrets.sh edit` (main) or `./scripts/secrets.sh edit forma`.
 - The age **private** key (`~/.config/sops/age/keys.txt`) never leaves the host
-  and is the only thing that can decrypt. **Back it up** — losing it loses the
-  secrets.
+  and is the only thing that can decrypt — the secrets **and the backups**.
+  **Back it up.**
 
 ```bash
 # one-time: install sops + age, then
@@ -289,7 +408,7 @@ snapshots/backups — only values are encrypted, keys stay readable for diffs.
 git add secrets.enc.env .sops.yaml && git commit -m "chore: encrypt secrets"
 
 ./scripts/secrets.sh edit       # change a secret (re-encrypts on save)
-./scripts/secrets.sh decrypt    # materialize .env by hand (deploy does this too)
+./scripts/secrets.sh decrypt    # materialize the plaintext env files
 ```
 
 Stronger variant (no plaintext `.env` on disk at all): wrap commands in
@@ -301,45 +420,16 @@ so the simpler 0600-`.env` flow above is the default.
 
 ## Notes & caveats
 
-- **Hostnames are assumptions** (`chat/money/recipes/notes/auth/status.meizuno.com`).
-  Adjust the `Host(...)` labels and the dashboard table to match your real DNS.
-- `postgres/init/01-init.sh` (per-app roles + databases) runs **only on a fresh
-  volume**. On an **existing** volume it won't run — to move off the old shared
-  `web` role to per-app roles, run `scripts/migrate-db-roles.sh` once (after
-  `git pull`, before redeploying the apps): it creates each role, transfers
-  database + object ownership, and confines CONNECT. Then redeploy the apps and
-  `DROP ROLE web`.
-- **Renaming `calories` → `forma`.** The app is now Forma end to end (service,
-  image `ghcr.io/meizuno/forma`, database, role, env keys, `forma.env`). On an
-  **existing** cluster the init script won't rename anything, so run
-  `scripts/rename-calories-to-forma.sh` once — after `git pull` and
-  `./scripts/secrets.sh decrypt`, but **before** `docker compose up -d`: it
-  renames the database and role in place (no dump/restore), resets the role
-  password to `FORMA_DB_PASSWORD`, and re-applies the CONNECT confinement. The
-  app must be stopped first — Postgres won't rename a database that has open
-  connections. Two secrets-side renames go with it:
-  ```sh
-  mv calories.env forma.env          # plaintext, gitignored — a plain mv, not git mv
-  ./scripts/secrets.sh edit          # CALORIES_DB_PASSWORD -> FORMA_DB_PASSWORD
-  ./scripts/secrets.sh decrypt       # re-derive .env from secrets.enc.env
-  ```
-  If a host predates per-app SOPS files it will have a **plaintext**
-  `calories.env` and no `secrets.calories.enc.env`, so there is nothing to
-  `git mv` — rename the plaintext file and (recommended) encrypt it afterwards:
-  `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
-  Until it is renamed, note that `.gitignore` covers `forma.env`, **not**
-  `calories.env` — so the stale plaintext file is no longer ignored.
-- **english** (`compose.english.yaml`) is self-contained like forma: its own
-  Google OAuth client, its own session cookie, its own `english.env` secrets
-  file, and its own OpenAI key (separate from the ai-chat stack's). It applies
-  its own schema on startup from `api/migrations/*.sql`, so there is no
-  migration step — but it needs the `english` DB + `english_user` role to exist
-  first (see the next bullet). Deployed with `docker rollout english` like the
-  other apps: its `/health` answers 503 while `/tmp/drain` exists, which is what
-  the drain hook touches.
-- **Adding a new app DB to an existing cluster** (e.g. `chat` for ai-chat): the
-  init script won't create it. Set `CHAT_DB_PASSWORD` in `.env`, then provision
-  the DB + role once with the superuser before deploying the app:
+- **Known issue: three app databases on a fresh volume.** `postgres/init/01-init.sh`
+  creates every app's role and database, but the `postgres` service passes it
+  only `AUTH_DB_PASSWORD`, `MONEY_DB_PASSWORD`, `RECIPES_DB_PASSWORD` and
+  `NOTES_DB_PASSWORD`. On a fresh volume the script stops at `forma`
+  (`FORMA_DB_PASSWORD: unbound variable`), so `forma`, `chat` and `english` are
+  not created. An existing cluster is unaffected. Until the three variables are
+  added to the service, create those with the snippet below.
+- **Adding an app database to an existing cluster** (the init script only runs
+  on a fresh volume). Set the app's `*_DB_PASSWORD` in `.env`, then once, as the
+  superuser, before deploying the app:
   ```sh
   docker compose exec -T postgres psql -U "${POSTGRES_SUPERUSER:-admin}" -d "${POSTGRES_SUPERUSER:-admin}" <<SQL
   CREATE ROLE chat_user LOGIN PASSWORD '<CHAT_DB_PASSWORD>';
@@ -348,8 +438,35 @@ so the simpler 0600-`.env` flow above is the default.
   GRANT CONNECT ON DATABASE chat TO chat_user;
   SQL
   ```
-  The app's entrypoint then applies the schema via `prisma migrate deploy` — no
-  `CREATEDB`/shadow-DB privilege needed for `deploy` (unlike `migrate dev`).
-- App schema migrations still run from each app's own image/entrypoint
-  (e.g. Notes runs `prisma migrate deploy` on start).
-- Kuma keeps `container_name:` and is not rolled.
+- **Schema migrations run from the apps themselves.** The Prisma apps apply
+  theirs from the image's entrypoint (Notes and ai-chat run
+  `prisma migrate deploy` on start — no `CREATEDB` needed, unlike `migrate dev`);
+  Forma and English apply their SQL migrations on boot under an advisory lock,
+  so two replicas starting together during a rollout cannot both migrate.
+- **Forma's product catalogue import** is never automatic — the command, and
+  why it runs as a separate `docker compose run`, are in `compose.forma.yaml`.
+
+### One-time migrations (existing clusters only)
+
+- **Shared `web` role → a role per app.** Run `scripts/migrate-db-roles.sh` once
+  (after `git pull`, before redeploying the apps): it creates each role,
+  transfers database and object ownership, and confines CONNECT. Then redeploy
+  the apps and `DROP ROLE web`.
+- **`calories` → `forma`.** Run `scripts/rename-calories-to-forma.sh` once —
+  after `git pull` and `./scripts/secrets.sh decrypt`, **before**
+  `docker compose up -d`, with the app stopped (Postgres will not rename a
+  database with open connections). It renames the database and role in place,
+  resets the role's password to `FORMA_DB_PASSWORD`, and re-applies the CONNECT
+  confinement. The secrets go with it:
+  ```sh
+  mv calories.env forma.env          # plaintext, gitignored — a plain mv, not git mv
+  ./scripts/secrets.sh edit          # CALORIES_DB_PASSWORD -> FORMA_DB_PASSWORD
+  ./scripts/secrets.sh decrypt       # re-derive .env from secrets.enc.env
+  ```
+  A host that predates per-app SOPS files has a plaintext `calories.env` and no
+  `secrets.calories.enc.env`; rename the plaintext file and encrypt it:
+  `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
+  Until it is renamed, `.gitignore` covers `forma.env`, **not** `calories.env`.
+- **Retired monitoring.** Beszel, Homepage and Vector → VictoriaLogs were removed
+  when Grafana arrived. Their hostnames — `beszel.meizuno.com`,
+  `home.meizuno.com`, `logs.meizuno.com` — can go from the tunnel.

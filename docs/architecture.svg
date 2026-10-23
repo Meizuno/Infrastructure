@@ -1,10 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 740" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 760" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
     </marker>
     <style>
       .card { fill:#ffffff; stroke:#e2e8f0; stroke-width:1; }
+      .iso  { fill:#ffffff; stroke:#cbd5e1; stroke-width:1.2; stroke-dasharray:4 3; }
       .name { fill:#0f172a; font-size:14px; font-weight:600; }
       .sub  { fill:#64748b; font-size:11px; }
       .tag  { fill:#94a3b8; font-size:10.5px; }
@@ -14,135 +15,151 @@
       .h1a  { fill:#10b981; font-size:17px; font-weight:800; }
     </style>
   </defs>
+  <rect x="0" y="0" width="1060" height="760" fill="#ffffff"/>
 
   <!-- title -->
   <text x="28" y="34" class="h1">meizuno <tspan class="h1a">infrastructure</tspan></text>
-  <text x="28" y="52" class="sub">One Docker Compose stack · Cloudflare-fronted · zero-downtime deploys</text>
+  <text x="28" y="52" class="sub">One Docker Compose stack · Cloudflare-fronted · zero-downtime deploys · observed end to end</text>
 
   <!-- ── Ingress chain ─────────────────────────────────────────────── -->
   <text x="28" y="86" class="lbl">INGRESS</text>
-  <!-- Internet -->
   <rect class="card" x="28"  y="96" width="150" height="52" rx="12"/>
-  <text x="103" y="120" text-anchor="middle" class="name">🌐 Internet</text>
+  <text x="103" y="120" text-anchor="middle" class="name">Internet</text>
   <text x="103" y="137" text-anchor="middle" class="tag">public traffic</text>
-  <!-- Cloudflare -->
+
   <rect class="card" x="210" y="96" width="184" height="52" rx="12"/>
   <rect x="210" y="96" width="4" height="52" rx="2" fill="#f38020"/>
   <text x="302" y="118" text-anchor="middle" class="name">Cloudflare edge</text>
-  <text x="302" y="135" text-anchor="middle" class="tag">DNS · WAF · Zero-Trust Access</text>
-  <!-- cloudflared -->
+  <text x="302" y="135" text-anchor="middle" class="tag">DNS · TLS · WAF · Access</text>
+
   <rect class="card" x="426" y="96" width="156" height="52" rx="12"/>
   <rect x="426" y="96" width="4" height="52" rx="2" fill="#f38020"/>
   <text x="504" y="118" text-anchor="middle" class="name">cloudflared</text>
-  <text x="504" y="135" text-anchor="middle" class="tag">outbound tunnel</text>
-  <!-- Traefik -->
+  <text x="504" y="135" text-anchor="middle" class="tag">outbound tunnel · no ports</text>
+
   <rect class="card" x="614" y="96" width="156" height="52" rx="12"/>
   <rect x="614" y="96" width="4" height="52" rx="2" fill="#24a1c1"/>
   <text x="692" y="118" text-anchor="middle" class="name">Traefik</text>
   <text x="692" y="135" text-anchor="middle" class="tag">host-based routing</text>
 
-  <path class="flow" d="M178 122 H208"   marker-end="url(#arrow)"/>
-  <path class="flow" d="M394 122 H424"   marker-end="url(#arrow)"/>
-  <path class="flow" d="M582 122 H612"   marker-end="url(#arrow)"/>
+  <path class="flow" d="M178 122 H208" marker-end="url(#arrow)"/>
+  <path class="flow" d="M394 122 H424" marker-end="url(#arrow)"/>
+  <path class="flow" d="M582 122 H612" marker-end="url(#arrow)"/>
 
-  <!-- ── Apps ──────────────────────────────────────────────────────── -->
+  <!-- ── Services ──────────────────────────────────────────────────── -->
   <text x="28" y="188" class="lbl">SERVICES</text>
-  <rect x="28" y="200" width="812" height="212" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-dasharray="4 4"/>
-  <text x="46" y="226" class="sub">Shared cookie-SSO — every app validates tokens at <tspan fill="#6366f1" font-weight="600">Authentication</tspan></text>
-
-  <!-- Traefik → apps -->
+  <rect x="28" y="200" width="812" height="214" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+  <text x="46" y="226" class="sub">SSO apps validate tokens at <tspan fill="#6366f1" font-weight="600">Authentication</tspan> · <tspan fill="#14b8a6" font-weight="600">Forma</tspan> and <tspan fill="#f43f5e" font-weight="600">English</tspan> sign in with Google on their own</text>
   <path class="flow" d="M692 148 V174 H434 V200" marker-end="url(#arrow)"/>
 
-  <!-- row helper: 3 cols x 2 rows -->
-  <!-- col x: 46, 316, 586 ; w 248 ; row y: 240, 320 ; h 64 -->
-  <!-- authentication -->
-  <rect class="card" x="46"  y="240" width="248" height="64" rx="12"/>
-  <circle cx="66" cy="266" r="5" fill="#6366f1"/>
-  <text x="82" y="264" class="name">Authentication</text>
-  <text x="82" y="284" class="tag">Go · Gin · JWT + refresh · Google OAuth</text>
-  <!-- ai-chat -->
-  <rect class="card" x="316" y="240" width="248" height="64" rx="12"/>
-  <circle cx="336" cy="266" r="5" fill="#8b5cf6"/>
-  <text x="352" y="264" class="name">AI Chat</text>
-  <text x="352" y="284" class="tag">Nuxt · OpenAI · MCP hub</text>
-  <!-- money-manager -->
-  <rect class="card" x="586" y="240" width="238" height="64" rx="12"/>
-  <circle cx="606" cy="266" r="5" fill="#10b981"/>
-  <text x="622" y="264" class="name">Money Manager</text>
-  <text x="622" y="284" class="tag">Nuxt · Prisma · MCP</text>
-  <!-- recipes-book -->
-  <rect class="card" x="46"  y="320" width="248" height="64" rx="12"/>
-  <circle cx="66" cy="346" r="5" fill="#f59e0b"/>
-  <text x="82" y="344" class="name">Recipes Book</text>
-  <text x="82" y="364" class="tag">Nuxt · Prisma · MCP</text>
-  <!-- notes -->
-  <rect class="card" x="316" y="320" width="248" height="64" rx="12"/>
-  <circle cx="336" cy="346" r="5" fill="#38bdf8"/>
-  <text x="352" y="344" class="name">Notes</text>
-  <text x="352" y="364" class="tag">Nuxt · Prisma · MCP</text>
-  <!-- forma -->
-  <rect class="card" x="586" y="320" width="238" height="64" rx="12"/>
-  <circle cx="606" cy="346" r="5" fill="#14b8a6"/>
-  <text x="622" y="344" class="name">Forma</text>
-  <text x="622" y="364" class="tag">Go · chi · sqlc + Vue SPA</text>
+  <!-- 4 columns: x 44, 240, 436, 632 ; w 184 ; rows y 242, 326 ; h 64 -->
+  <rect class="card" x="44"  y="242" width="184" height="64" rx="12"/>
+  <circle cx="62" cy="268" r="5" fill="#6366f1"/>
+  <text x="76" y="266" class="name">Authentication</text>
+  <text x="76" y="286" class="tag">Go · Gin · JWT · Google</text>
 
-  <!-- ── Postgres ──────────────────────────────────────────────────── -->
-  <text x="912" y="188" class="lbl" text-anchor="middle">DATA</text>
+  <rect class="card" x="240" y="242" width="184" height="64" rx="12"/>
+  <circle cx="258" cy="268" r="5" fill="#8b5cf6"/>
+  <text x="272" y="266" class="name">AI Chat</text>
+  <text x="272" y="286" class="tag">Nuxt · OpenAI · MCP hub</text>
+
+  <rect class="card" x="436" y="242" width="184" height="64" rx="12"/>
+  <circle cx="454" cy="268" r="5" fill="#10b981"/>
+  <text x="468" y="266" class="name">Money Manager</text>
+  <text x="468" y="286" class="tag">Nuxt · Prisma · MCP</text>
+
+  <rect class="card" x="632" y="242" width="184" height="64" rx="12"/>
+  <circle cx="650" cy="268" r="5" fill="#f59e0b"/>
+  <text x="664" y="266" class="name">Recipes Book</text>
+  <text x="664" y="286" class="tag">Nuxt · Prisma · MCP</text>
+
+  <rect class="card" x="44"  y="326" width="184" height="64" rx="12"/>
+  <circle cx="62" cy="352" r="5" fill="#38bdf8"/>
+  <text x="76" y="350" class="name">Notes</text>
+  <text x="76" y="370" class="tag">Nuxt · Prisma · MCP</text>
+
+  <rect class="card" x="240" y="326" width="184" height="64" rx="12"/>
+  <circle cx="258" cy="352" r="5" fill="#14b8a6"/>
+  <text x="272" y="350" class="name">Forma</text>
+  <text x="272" y="370" class="tag">FastAPI · Vue · assistant</text>
+
+  <rect class="card" x="436" y="326" width="184" height="64" rx="12"/>
+  <circle cx="454" cy="352" r="5" fill="#f43f5e"/>
+  <text x="468" y="350" class="name">English</text>
+  <text x="468" y="370" class="tag">FastAPI · Vue · OpenAI</text>
+
+  <!-- ai-chat's code sandbox: its own internal network, nothing else on it -->
+  <rect class="iso" x="632" y="326" width="184" height="64" rx="12"/>
+  <circle cx="650" cy="352" r="5" fill="#94a3b8"/>
+  <text x="664" y="350" class="name">Code sandbox</text>
+  <text x="664" y="370" class="tag">run_code · no network</text>
+  <path d="M332 306 V316 H724 V326" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+
+  <!-- ── Data ──────────────────────────────────────────────────────── -->
+  <text x="950" y="188" class="lbl" text-anchor="middle">DATA</text>
   <g>
-    <ellipse cx="912" cy="228" rx="66" ry="16" fill="#ffffff" stroke="#336791" stroke-width="1.5"/>
-    <path d="M846 228 V300 A66 16 0 0 0 978 300 V228" fill="#ffffff" stroke="#336791" stroke-width="1.5"/>
-    <ellipse cx="912" cy="228" rx="66" ry="16" fill="#eff4f9" stroke="#336791" stroke-width="1.5"/>
-    <text x="912" y="270" text-anchor="middle" class="name">PostgreSQL 18</text>
-    <text x="912" y="288" text-anchor="middle" class="tag">role + DB per app</text>
+    <ellipse cx="950" cy="226" rx="64" ry="15" fill="#ffffff" stroke="#336791" stroke-width="1.5"/>
+    <path d="M886 226 V292 A64 15 0 0 0 1014 292 V226" fill="#ffffff" stroke="#336791" stroke-width="1.5"/>
+    <ellipse cx="950" cy="226" rx="64" ry="15" fill="#eff4f9" stroke="#336791" stroke-width="1.5"/>
+    <text x="950" y="264" text-anchor="middle" class="name">PostgreSQL 18</text>
+    <text x="950" y="282" text-anchor="middle" class="tag">role + DB per app</text>
   </g>
-  <path class="flow" d="M840 300 H912 V318" marker-end="url(#arrow)"/>
-  <text x="836" y="326" text-anchor="end" class="tag">pgx / Prisma</text>
+  <rect class="card" x="886" y="330" width="128" height="48" rx="10"/>
+  <rect x="886" y="330" width="4" height="48" rx="2" fill="#dc382d"/>
+  <text x="950" y="351" text-anchor="middle" class="name">Redis 8</text>
+  <text x="950" y="367" text-anchor="middle" class="tag">shared store</text>
+  <path class="flow" d="M840 262 H884" marker-end="url(#arrow)"/>
 
   <!-- ── Operations band ───────────────────────────────────────────── -->
-  <text x="28" y="452" class="lbl">OPERATIONS</text>
-  <!-- 4 tiles: x 28,286,544,802 ; w 246 ; y 462 ; h 150 -->
+  <text x="28" y="456" class="lbl">OPERATIONS</text>
+  <!-- 4 tiles: x 28, 286, 544, 802 ; w 230 ; y 466 ; h 156 -->
   <g>
-    <rect class="card" x="28"  y="462" width="230" height="150" rx="14"/>
-    <text x="46" y="490" class="name">🔭 Monitoring</text>
-    <text x="46" y="514" class="sub"><tspan fill="#5cdd8b" font-weight="600">Uptime&#160;Kuma</tspan> status + alerting</text>
-    <text x="46" y="534" class="sub">push monitor for nightly backups</text>
-    <text x="46" y="558" class="sub"><tspan fill="#f46800" font-weight="600">Grafana</tspan> — planned</text>
-    <text x="46" y="582" class="tag">metrics / logs: pending</text>
+    <rect class="card" x="28" y="466" width="230" height="156" rx="14"/>
+    <text x="46" y="494" class="name">Observability</text>
+    <text x="46" y="518" class="sub"><tspan fill="#f46800" font-weight="600">Grafana</tspan> dashboards</text>
+    <text x="46" y="536" class="sub">VictoriaMetrics · Loki · Pyroscope</text>
+    <text x="46" y="554" class="sub">routes, CPU, memory, logs</text>
+    <text x="46" y="578" class="sub"><tspan fill="#5cdd8b" font-weight="600">Uptime&#160;Kuma</tspan> checks + alerts</text>
+    <text x="46" y="602" class="tag">uptime events in Grafana too</text>
   </g>
   <g>
-    <rect class="card" x="286" y="462" width="230" height="150" rx="14"/>
-    <text x="304" y="492" class="name">💾 Backups</text>
+    <rect class="card" x="286" y="466" width="230" height="156" rx="14"/>
+    <text x="304" y="494" class="name">Backups</text>
     <text x="304" y="518" class="sub">nightly pg_dumpall →</text>
-    <text x="304" y="534" class="sub">age-encrypted → <tspan fill="#f38020" font-weight="600">R2</tspan></text>
-    <text x="304" y="560" class="sub">restore auto-verified</text>
-    <text x="304" y="586" class="tag">30-object retention</text>
+    <text x="304" y="536" class="sub">age-encrypted → <tspan fill="#f38020" font-weight="600">R2</tspan></text>
+    <text x="304" y="554" class="sub">restore verified every night</text>
+    <text x="304" y="578" class="sub">result + reason → Kuma</text>
+    <text x="304" y="602" class="tag">R2 lifecycle retention</text>
   </g>
   <g>
-    <rect class="card" x="544" y="462" width="230" height="150" rx="14"/>
-    <text x="562" y="492" class="name">🚀 Delivery</text>
+    <rect class="card" x="544" y="466" width="230" height="156" rx="14"/>
+    <text x="562" y="494" class="name">Delivery</text>
     <text x="562" y="518" class="sub">GitHub Actions → GHCR</text>
-    <text x="562" y="534" class="sub">→ <tspan fill="#2496ed" font-weight="600">docker rollout</tspan></text>
-    <text x="562" y="560" class="sub">health-gated cutover</text>
-    <text x="562" y="586" class="tag">zero downtime</text>
+    <text x="562" y="536" class="sub">→ <tspan fill="#2496ed" font-weight="600">docker rollout</tspan></text>
+    <text x="562" y="554" class="sub">health-gated, drained cutover</text>
+    <text x="562" y="602" class="tag">zero downtime at one replica</text>
   </g>
   <g>
-    <rect class="card" x="802" y="462" width="230" height="150" rx="14"/>
-    <text x="820" y="492" class="name">🔐 Secrets</text>
+    <rect class="card" x="802" y="466" width="230" height="156" rx="14"/>
+    <text x="820" y="494" class="name">Secrets</text>
     <text x="820" y="518" class="sub"><tspan fill="#10b981" font-weight="600">SOPS</tspan> + age</text>
-    <text x="820" y="534" class="sub">encrypted at rest in git</text>
-    <text x="820" y="560" class="sub">EdDSA JWT signing key</text>
-    <text x="820" y="586" class="tag">as a file secret</text>
+    <text x="820" y="536" class="sub">encrypted at rest in git</text>
+    <text x="820" y="554" class="sub">EdDSA JWT signing key</text>
+    <text x="820" y="602" class="tag">as a file secret</text>
   </g>
 
   <!-- Postgres → backups (data protection) -->
-  <path d="M912 316 V430 H401 V462" fill="none" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="3 4" marker-end="url(#arrow)"/>
+  <path d="M886 286 H860 V438 H401 V466" fill="none" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="3 4" marker-end="url(#arrow)"/>
 
   <!-- ── Tooling band (edge-gated internal UIs) ─────────────────────── -->
-  <text x="28" y="648" class="lbl">TOOLING</text>
-  <text x="1032" y="648" text-anchor="end" class="tag">🔒 behind Cloudflare Access</text>
-  <!-- Code-Server -->
-  <rect class="card" x="28" y="658" width="1004" height="64" rx="12"/>
-  <circle cx="48" cy="684" r="5" fill="#2496ed"/>
-  <text x="64" y="682" class="name">Code Server</text>
-  <text x="64" y="702" class="tag">browser VS Code · rootless Docker-in-Docker</text>
+  <text x="28" y="660" class="lbl">TOOLING</text>
+  <text x="1032" y="660" text-anchor="end" class="tag">behind Cloudflare Access</text>
+  <rect class="card" x="28" y="670" width="560" height="64" rx="12"/>
+  <circle cx="48" cy="696" r="5" fill="#2496ed"/>
+  <text x="64" y="694" class="name">Code Server</text>
+  <text x="64" y="714" class="tag">browser VS Code · rootless Docker · reached by cloudflared on its own tunnel network</text>
+  <rect class="card" x="604" y="670" width="428" height="64" rx="12"/>
+  <circle cx="624" cy="696" r="5" fill="#f46800"/>
+  <text x="640" y="694" class="name">Dashboards</text>
+  <text x="640" y="714" class="tag">Grafana · Uptime Kuma · Traefik dashboard</text>
 </svg>
