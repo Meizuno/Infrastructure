@@ -30,6 +30,14 @@ command -v age >/dev/null 2>&1 || { echo "age not installed — needed to decryp
 r2() { docker run --rm -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
          amazon/aws-cli "$@" --endpoint-url "$R2_ENDPOINT"; }
 
+# Why it failed, in one line, for whoever called us: backup-db.sh puts it in
+# the Kuma message, which used to say only "verify-failed-1". The first reason
+# wins — the rest are usually its consequences.
+because() {
+  [ -n "${VERIFY_REASON_FILE:-}" ] || return 0
+  [ -s "$VERIFY_REASON_FILE" ] || printf '%s\n' "$1" > "$VERIFY_REASON_FILE"
+}
+
 key="${1:-}"
 if [ -z "$key" ]; then
   latest=$(r2 s3 ls "s3://${R2_BUCKET}/${R2_PREFIX}/" | awk '{print $NF}' | grep -E '\.sql\.gz\.age$' | sort | tail -n1)
@@ -42,7 +50,12 @@ tmp="$(mktemp)"
 errlog="$(mktemp)"   # per-run, owned by us — a fixed /tmp path breaks when a
                      # previous run (different user) left it non-writable
 name="pg-restore-test-$$"
-cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$tmp" "$errlog"; }
+# -v, or the restored copy stays on disk. The image declares a VOLUME, so the
+# throwaway server writes the whole restored cluster into an anonymous volume,
+# and `docker rm` without -v leaves it behind — one full copy of the databases
+# per night (1.7 GB each on the host, found as a row of unattached volumes),
+# and 40 MB for every night the restore never started.
+cleanup() { docker rm -f -v "$name" >/dev/null 2>&1 || true; rm -f "$tmp" "$errlog"; }
 trap cleanup EXIT
 
 r2 s3 cp "s3://${R2_BUCKET}/${key}" - > "$tmp"
@@ -50,10 +63,30 @@ r2 s3 cp "s3://${R2_BUCKET}/${key}" - > "$tmp"
 
 echo "Starting throwaway Postgres (no published port, auto-removed)…"
 docker run -d --name "$name" -e POSTGRES_PASSWORD=verify postgres:18.4-bookworm >/dev/null
-for _ in $(seq 1 30); do
-  docker exec "$name" pg_isready -U postgres >/dev/null 2>&1 && break
+# Ready over TCP, never over the socket. On a fresh volume the image's
+# entrypoint runs a TEMPORARY server on the Unix socket only, runs initdb's
+# scripts against it, stops it and starts the real one. pg_isready on the socket
+# says yes to the temporary one, and a restore started then lands in the gap —
+# "connection to server on socket … failed", nothing restored, and a FAIL for a
+# backup that was fine. That was the intermittent "verify-failed-1": reproduced
+# 2 runs in 12 waiting on the socket, 0 in 12 waiting on TCP, which only the
+# real server listens on.
+#
+# And a server that never came up is a failure in its own right, said as one,
+# rather than a restore attempted against nothing.
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 1
 done
+if [ "$ready" -ne 1 ]; then
+  because "throwaway Postgres never became ready"
+  echo "throwaway Postgres never became ready" >&2
+  exit 1
+fi
 
 echo "Restoring (age -d → gunzip → psql)…"
 age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>"$errlog" || true
@@ -75,16 +108,21 @@ for db in authentication money_manager recipes_book notes forma; do
     tbls=$(q -d "$db" -c "SELECT count(*) FROM pg_stat_user_tables;")
     rows=$(q -d "$db" -c "SELECT coalesce(sum(n_live_tup),0) FROM pg_stat_user_tables;")
     echo "  ${db}: ${tbls:-0} tables, ${rows:-0} rows"
-    [ "${tbls:-0}" -gt 0 ] || { echo "    ✗ ${db} restored 0 tables"; fail=1; }
+    [ "${tbls:-0}" -gt 0 ] || { echo "    ✗ ${db} restored 0 tables"; because "${db} restored 0 tables"; fail=1; }
   else
-    echo "  ${db}: MISSING"; fail=1
+    echo "  ${db}: MISSING"; because "${db} missing from the restore"; fail=1
   fi
 done
 
 # Count real psql errors, ignoring the benign "already exists" a pg_dumpall can
 # emit for pre-seeded roles/objects in a fresh cluster.
 errs=$(grep -iE 'error:' "$errlog" 2>/dev/null | grep -ivc 'already exists' || true)
-[ "${errs:-0}" -gt 0 ] && { echo "✗ ${errs} restore error(s):"; grep -iE 'error:' "$errlog" | grep -iv 'already exists' | head -20; fail=1; }
+if [ "${errs:-0}" -gt 0 ]; then
+  echo "✗ ${errs} restore error(s):"
+  grep -iE 'error:' "$errlog" | grep -iv 'already exists' | head -20
+  because "${errs} restore error(s): $(grep -iE 'error:' "$errlog" | grep -iv 'already exists' | head -1 | cut -c1-120)"
+  fail=1
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo "PASS — backup restores cleanly (throwaway instance removed on exit)."

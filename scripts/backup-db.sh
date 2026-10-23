@@ -44,18 +44,32 @@ fi
 KUMA_PUSH_URL="${KUMA_PUSH_URL:-$(env_val KUMA_PUSH_URL)}"
 ping_kuma() {
   [ -n "$KUMA_PUSH_URL" ] || return 0
+  # -G with --data-urlencode: the message now carries a reason in words, and a
+  # space or a colon in a query string pasted in raw is a broken push.
   docker run --rm --network meizuno_edge curlimages/curl:latest \
-    -fsS --max-time 10 "${KUMA_PUSH_URL}?status=$1&msg=$2" >/dev/null 2>&1 || true
+    -fsS --max-time 10 -G --data-urlencode "status=$1" --data-urlencode "msg=$2" \
+    "$KUMA_PUSH_URL" >/dev/null 2>&1 || true
 }
 
 tmp=""
 stage="init"
+# One line on why, written by whichever step failed — the size check below, or
+# verify-restore.sh — and sent with the Kuma ping, so the monitor says what
+# happened rather than only which stage it happened in.
+reason="$(mktemp)"
 finish() {
   code=$?
   [ -n "$tmp" ] && rm -f "$tmp"
   # "up" only after the backup is uploaded AND verified restorable (see below),
   # so a green Kuma monitor means recoverable, not merely "upload didn't error".
-  if [ "$code" -eq 0 ]; then ping_kuma up ok; else ping_kuma down "${stage}-failed-${code}"; fi
+  if [ "$code" -eq 0 ]; then
+    ping_kuma up ok
+  else
+    msg="${stage}-failed-${code}"
+    [ -s "$reason" ] && msg="${msg}: $(head -n1 "$reason" | cut -c1-150)"
+    ping_kuma down "$msg"
+  fi
+  rm -f "$reason"
 }
 trap finish EXIT
 
@@ -101,9 +115,13 @@ remote_size=$(docker run --rm \
   -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION \
   amazon/aws-cli s3api head-object --bucket "$R2_BUCKET" --key "$key" \
   --endpoint-url "$R2_ENDPOINT" --query ContentLength --output text)
-[ "$remote_size" = "$size" ] || { echo "R2 object is ${remote_size} bytes but this run produced ${size} — not our backup, aborting" >&2; exit 1; }
+[ "$remote_size" = "$size" ] || {
+  echo "R2 object is ${remote_size} bytes but this run produced ${size} — not our backup, aborting" >&2
+  echo "R2 object is ${remote_size} bytes, this run made ${size}" > "$reason"
+  exit 1
+}
 
 echo "[$(date -u +%FT%TZ)] verifying the uploaded backup restores…"
-"$(dirname "$0")/verify-restore.sh" "$key"
+VERIFY_REASON_FILE="$reason" "$(dirname "$0")/verify-restore.sh" "$key"
 
 echo "[$(date -u +%FT%TZ)] backup complete & verified restorable: ${key}"
