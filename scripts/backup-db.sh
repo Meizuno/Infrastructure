@@ -17,7 +17,8 @@ cd "$(dirname "$0")/.."
 
 ENV_FILE="${ENV_FILE:-.env}"
 # Raw value after the first `=` — no shell eval, so `$`/`=` in secrets survive.
-env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2-; }
+# `|| true`: a missing key is empty, not fatal — see verify-restore.sh.
+env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2- || true; }
 
 SU="${POSTGRES_SUPERUSER:-$(env_val POSTGRES_SUPERUSER)}"; SU="${SU:-admin}"
 R2_ENDPOINT="${R2_ENDPOINT:-$(env_val R2_ENDPOINT)}"

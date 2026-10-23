@@ -10,11 +10,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ENV_FILE="${ENV_FILE:-.env}"
-env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2-; }
+# `|| true`: a key that is not in the file is empty, not fatal. Without it a
+# missing key failed the pipeline, and under pipefail and set -e that ended the
+# script silently — so the keys with defaults below were never optional.
+env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2- || true; }
 
 R2_ENDPOINT="${R2_ENDPOINT:-$(env_val R2_ENDPOINT)}"
 R2_BUCKET="${R2_BUCKET:-$(env_val R2_BUCKET)}"
 R2_PREFIX="${R2_PREFIX:-$(env_val R2_PREFIX)}"; R2_PREFIX="${R2_PREFIX:-postgres}"
+# The live cluster's first superuser — POSTGRES_USER of the stack's postgres,
+# the role pg_dumpall ran as. See the throwaway server below for why it matters.
+SU="${POSTGRES_SUPERUSER:-$(env_val POSTGRES_SUPERUSER)}"; SU="${SU:-admin}"
 export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-$(env_val R2_ACCESS_KEY_ID)}"
 export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-$(env_val R2_SECRET_ACCESS_KEY)}"
 export AWS_DEFAULT_REGION=auto
@@ -62,21 +68,30 @@ r2 s3 cp "s3://${R2_BUCKET}/${key}" - > "$tmp"
 [ -s "$tmp" ] || { echo "downloaded dump is empty" >&2; exit 1; }
 
 echo "Starting throwaway Postgres (no published port, auto-removed)…"
-docker run -d --name "$name" -e POSTGRES_PASSWORD=verify postgres:18.4-bookworm >/dev/null
+# Created with the live cluster's superuser as its FIRST user, as a real
+# restore into a fresh stack would be, rather than the image's `postgres`.
+# The dump records who granted each role membership — "GRANT pg_monitor TO
+# monitoring … GRANTED BY admin" — and only the cluster's first superuser may
+# grant as itself without an explicit admin option. Restored under `postgres`,
+# admin is an ordinary superuser, so that line fails ("permission denied to
+# grant privileges as role admin"), the membership is lost, and a good backup
+# is reported as broken. Which is what the 23 October failure was, from the
+# day the monitoring role was created.
+docker run -d --name "$name" -e POSTGRES_USER="$SU" -e POSTGRES_PASSWORD=verify postgres:18.4-bookworm >/dev/null
 # Ready over TCP, never over the socket. On a fresh volume the image's
 # entrypoint runs a TEMPORARY server on the Unix socket only, runs initdb's
 # scripts against it, stops it and starts the real one. pg_isready on the socket
 # says yes to the temporary one, and a restore started then lands in the gap —
 # "connection to server on socket … failed", nothing restored, and a FAIL for a
-# backup that was fine. That was the intermittent "verify-failed-1": reproduced
-# 2 runs in 12 waiting on the socket, 0 in 12 waiting on TCP, which only the
-# real server listens on.
+# backup that was fine. One cause of the intermittent "verify-failed-1":
+# reproduced 2 runs in 12 waiting on the socket, 0 in 12 waiting on TCP, which
+# only the real server listens on.
 #
 # And a server that never came up is a failure in its own right, said as one,
 # rather than a restore attempted against nothing.
 ready=0
 for _ in $(seq 1 60); do
-  if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; then
+  if docker exec "$name" pg_isready -h 127.0.0.1 -U "$SU" >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -89,9 +104,9 @@ if [ "$ready" -ne 1 ]; then
 fi
 
 echo "Restoring (age -d → gunzip → psql)…"
-age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U postgres -d postgres >/dev/null 2>"$errlog" || true
+age -d -i "$AGE_KEY_FILE" "$tmp" | gunzip | docker exec -i "$name" psql -q -U "$SU" -d postgres >/dev/null 2>"$errlog" || true
 
-q() { docker exec "$name" psql -tAX -U postgres "$@"; }
+q() { docker exec "$name" psql -tAX -U "$SU" "$@"; }
 
 echo "── databases ──"
 q -d postgres -c "SELECT datname FROM pg_database WHERE datname NOT IN ('template0','template1','postgres') ORDER BY 1;"
@@ -104,7 +119,7 @@ echo "── per-DB tables / rows ──"
 fail=0
 for db in authentication money_manager recipes_book notes forma; do
   if q -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
-    docker exec "$name" psql -qX -U postgres -d "$db" -c "ANALYZE;" >/dev/null 2>&1 || true
+    docker exec "$name" psql -qX -U "$SU" -d "$db" -c "ANALYZE;" >/dev/null 2>&1 || true
     tbls=$(q -d "$db" -c "SELECT count(*) FROM pg_stat_user_tables;")
     rows=$(q -d "$db" -c "SELECT coalesce(sum(n_live_tup),0) FROM pg_stat_user_tables;")
     echo "  ${db}: ${tbls:-0} tables, ${rows:-0} rows"
