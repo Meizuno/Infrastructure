@@ -1,10 +1,6 @@
-# Infrastructure: ingress, data, monitoring. Single-instance services (not
-# rolled) — they keep fixed container_name.
-#
-# Uptime Kuma is what is left of the old monitoring stack: it stays as the
-# alerting layer (it also receives the backup push from scripts/backup-db.sh).
-# Beszel, Homepage, VictoriaLogs and Vector were removed — Grafana replaces
-# them; see README → Monitoring.
+# Infrastructure: ingress and data. Single-instance services (not rolled) —
+# they keep fixed container_name. Uptime Kuma, which used to live here, is in
+# compose.monitoring.yaml with the rest of what watches the stack.
 # Assembled into the `meizuno` project via compose.yaml (include:).
 
 services:
@@ -148,27 +144,6 @@ services:
           cpus: "0.5"
           memory: 512M
 
-  # ── Monitoring ───────────────────────────────────────────────────────────--─
-  kuma:
-    image: louislam/uptime-kuma:2
-    container_name: uptime-kuma
-    restart: always
-    environment:
-      TZ: ${TZ:-Europe/Prague}
-    volumes:
-      - kuma-data:/app/data
-    networks: [edge]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.kuma.rule=Host(`status.meizuno.com`)
-      - traefik.http.routers.kuma.entrypoints=web
-      - traefik.http.services.kuma.loadbalancer.server.port=3001
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256M
-
 networks:
   edge:
     name: meizuno_edge
@@ -184,5 +159,3 @@ volumes:
     name: meizuno_postgres-data
   redis-data:
     name: meizuno_redis-data
-  kuma-data:
-    name: meizuno_kuma-data

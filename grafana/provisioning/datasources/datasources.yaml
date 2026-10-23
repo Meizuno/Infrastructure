@@ -26,3 +26,16 @@ datasources:
     type: grafana-pyroscope-datasource
     access: proxy
     url: http://pyroscope:4040
+
+  # Uptime Kuma's SQLite file, mounted read-only into Grafana
+  # (compose.monitoring.yaml) and opened read-only here too. Feeds the
+  # overview's uptime row: the monitors' current state and their status
+  # changes with Kuma's own messages.
+  - name: Uptime Kuma
+    uid: kuma
+    type: frser-sqlite-datasource
+    access: proxy
+    jsonData:
+      path: /var/lib/kuma/kuma.db
+      pathPrefix: "file:"
+      pathOptions: "?mode=ro"

@@ -1,7 +1,7 @@
 {
   "uid": "meizuno-overview",
   "title": "Meizuno — Overview",
-  "description": "Stack health, host, and error logs up front; Traefik, the databases and monitoring's own footprint in collapsed rows. Provisioned from git — edit grafana/dashboards/meizuno-overview.json, because the file overrides UI changes on reload.",
+  "description": "Stack health, uptime, host, and error logs up front; Traefik, the databases and monitoring's own footprint in collapsed rows. Provisioned from git — edit grafana/dashboards/meizuno-overview.json, because the file overrides UI changes on reload.",
   "tags": [
     "meizuno",
     "provisioned"
@@ -278,13 +278,283 @@
     },
     {
       "type": "row",
-      "title": "Host",
+      "title": "Uptime — Kuma",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 6
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Monitors now",
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "kuma"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "kuma"
+          },
+          "queryType": "table",
+          "queryText": "WITH latest AS (\n  SELECT m.active AS active,\n         (SELECT h.status FROM heartbeat h WHERE h.monitor_id = m.id ORDER BY h.time DESC LIMIT 1) AS status\n  FROM monitor m\n  WHERE m.type != 'group'\n)\nSELECT\n  coalesce(sum(active = 1 AND status IN (1, 2)), 0) AS \"Up\",\n  coalesce(sum(active = 1 AND status = 0), 0) AS \"Down\",\n  coalesce(sum(active = 1 AND status = 3), 0) AS \"Maintenance\",\n  coalesce(sum(active = 1 AND status IS NULL), 0) AS \"Unknown\",\n  coalesce(sum(active = 0), 0) AS \"Pause\"\nFROM latest",
+          "rawQueryText": "WITH latest AS (\n  SELECT m.active AS active,\n         (SELECT h.status FROM heartbeat h WHERE h.monitor_id = m.id ORDER BY h.time DESC LIMIT 1) AS status\n  FROM monitor m\n  WHERE m.type != 'group'\n)\nSELECT\n  coalesce(sum(active = 1 AND status IN (1, 2)), 0) AS \"Up\",\n  coalesce(sum(active = 1 AND status = 0), 0) AS \"Down\",\n  coalesce(sum(active = 1 AND status = 3), 0) AS \"Maintenance\",\n  coalesce(sum(active = 1 AND status IS NULL), 0) AS \"Unknown\",\n  coalesce(sum(active = 0), 0) AS \"Pause\"\nFROM latest",
+          "timeColumns": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Up"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Down"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Maintenance"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "links": [
+        {
+          "title": "Open Uptime Kuma",
+          "url": "https://status.meizuno.com",
+          "targetBlank": true
+        }
+      ],
+      "description": "Kuma's Quick Stats, read from Kuma's own database: each monitor by the status of its latest heartbeat. Pending counts as up, as it does in Kuma. Pause is a monitor switched off; Unknown is one with no heartbeat yet."
+    },
+    {
+      "type": "table",
+      "title": "Uptime events",
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "kuma"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "kuma"
+          },
+          "queryType": "table",
+          "queryText": "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', h.time) AS \"DateTime\", m.name AS \"Name\", h.status AS \"Status\", h.msg AS \"Message\"\nFROM monitor m\nJOIN heartbeat h ON h.monitor_id = m.id AND h.important = 1\nWHERE h.time >= datetime($__from / 1000, 'unixepoch') AND h.time <= datetime($__to / 1000, 'unixepoch')\nORDER BY h.time DESC\nLIMIT 500",
+          "rawQueryText": "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', h.time) AS \"DateTime\", m.name AS \"Name\", h.status AS \"Status\", h.msg AS \"Message\"\nFROM monitor m\nJOIN heartbeat h ON h.monitor_id = m.id AND h.important = 1\nWHERE h.time >= datetime($__from / 1000, 'unixepoch') AND h.time <= datetime($__to / 1000, 'unixepoch')\nORDER BY h.time DESC\nLIMIT 500",
+          "timeColumns": [
+            "DateTime"
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Down",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Up",
+                        "color": "green",
+                        "index": 1
+                      },
+                      "2": {
+                        "text": "Pending",
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "3": {
+                        "text": "Maintenance",
+                        "color": "blue",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DateTime"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 240
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "links": [
+        {
+          "title": "Open Uptime Kuma",
+          "url": "https://status.meizuno.com",
+          "targetBlank": true
+        }
+      ],
+      "description": "Every time a monitor changed status in the selected range, newest first, with Kuma's message — the list on Kuma's dashboard. A backup that failed verification says why since the backup script started sending a reason."
+    },
+    {
+      "type": "row",
+      "title": "Host",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
       },
       "panels": []
     },
@@ -299,7 +569,7 @@
         "h": 4,
         "w": 8,
         "x": 0,
-        "y": 7
+        "y": 22
       },
       "targets": [
         {
@@ -358,7 +628,7 @@
         "h": 4,
         "w": 8,
         "x": 8,
-        "y": 7
+        "y": 22
       },
       "targets": [
         {
@@ -418,7 +688,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 7
+        "y": 22
       },
       "targets": [
         {
@@ -476,7 +746,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 11
+        "y": 26
       },
       "targets": [
         {
@@ -527,7 +797,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 11
+        "y": 26
       },
       "targets": [
         {
@@ -581,7 +851,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 19
+        "y": 34
       },
       "targets": [
         {
@@ -641,7 +911,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 19
+        "y": 34
       },
       "targets": [
         {
@@ -696,7 +966,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 19
+        "y": 34
       },
       "targets": [
         {
@@ -748,7 +1018,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 41
       },
       "panels": []
     },
@@ -763,7 +1033,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 42
       },
       "targets": [
         {
@@ -817,7 +1087,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 50
       },
       "targets": [
         {
@@ -845,7 +1115,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 62
       },
       "panels": [
         {
@@ -859,7 +1129,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 48
+            "y": 63
           },
           "targets": [
             {
@@ -908,7 +1178,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 48
+            "y": 63
           },
           "targets": [
             {
@@ -966,7 +1236,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 48
+            "y": 63
           },
           "targets": [
             {
@@ -1023,7 +1293,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 52
+            "y": 67
           },
           "targets": [
             {
@@ -1076,7 +1346,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 52
+            "y": 67
           },
           "targets": [
             {
@@ -1135,7 +1405,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 60
+            "y": 75
           },
           "targets": [
             {
@@ -1187,7 +1457,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 64
       },
       "panels": [
         {
@@ -1201,7 +1471,7 @@
             "h": 4,
             "w": 6,
             "x": 0,
-            "y": 50
+            "y": 65
           },
           "targets": [
             {
@@ -1259,7 +1529,7 @@
             "h": 4,
             "w": 6,
             "x": 6,
-            "y": 50
+            "y": 65
           },
           "targets": [
             {
@@ -1308,7 +1578,7 @@
             "h": 4,
             "w": 6,
             "x": 12,
-            "y": 50
+            "y": 65
           },
           "targets": [
             {
@@ -1366,7 +1636,7 @@
             "h": 4,
             "w": 6,
             "x": 18,
-            "y": 50
+            "y": 65
           },
           "targets": [
             {
@@ -1425,7 +1695,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 54
+            "y": 69
           },
           "targets": [
             {
@@ -1478,7 +1748,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 54
+            "y": 69
           },
           "targets": [
             {
@@ -1532,7 +1802,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 62
+            "y": 77
           },
           "targets": [
             {
@@ -1581,7 +1851,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 62
+            "y": 77
           },
           "targets": [
             {
@@ -1629,7 +1899,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 66
       },
       "panels": [
         {
@@ -1643,7 +1913,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 52
+            "y": 67
           },
           "targets": [
             {
@@ -1693,7 +1963,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 52
+            "y": 67
           },
           "targets": [
             {
@@ -1751,7 +2021,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 52
+            "y": 67
           },
           "targets": [
             {
@@ -1805,7 +2075,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 56
+            "y": 71
           },
           "targets": [
             {
@@ -1858,7 +2128,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 56
+            "y": 71
           },
           "targets": [
             {

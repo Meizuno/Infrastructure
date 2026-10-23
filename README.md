@@ -205,8 +205,8 @@ setup and periodically:
 kept deliberately: it is the **alerting** layer. Every service is checked on a
 20s interval, and `scripts/backup-db.sh` pushes its result to a Kuma push
 monitor (`KUMA_PUSH_URL`), so a failed — or never-run — backup raises an alert
-too. Kuma is an infra service: `docker compose up -d kuma`, never
-`docker rollout`.
+too. Kuma lives in `compose.monitoring.yaml` and is a single-instance service:
+`docker compose up -d kuma`, never `docker rollout`.
 
 **Grafana is replacing the rest.** Beszel (host/container metrics), Homepage
 (landing dashboard) and Vector → VictoriaLogs (centralized logs) were removed

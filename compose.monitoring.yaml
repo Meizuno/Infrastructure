@@ -3,6 +3,8 @@
 # never `docker rollout`.
 #
 #   grafana            — the only UI (grafana.meizuno.com), behind Cloudflare Access
+#   kuma               — Uptime Kuma (status.meizuno.com): uptime checks, the
+#                        backup's push monitor, and the alerts
 #   victoria-metrics   — metrics store AND scraper (PromQL-compatible, one binary,
 #                        so no separate Prometheus/vmagent)
 #   loki + alloy       — logs: alloy tails every container via the docker socket,
@@ -59,6 +61,12 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       # Datasources come from ./grafana/provisioning (committed), not clicks.
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      # Reads Uptime Kuma's own SQLite file for the overview's uptime row —
+      # the status changes and their messages ("verify-failed-1") live only
+      # there: Kuma's /metrics has no messages, and its log has neither the
+      # recoveries nor anything about push monitors. Installed before Grafana
+      # starts and kept in grafana-data; pinned, like every image here.
+      GF_PLUGINS_PREINSTALL_SYNC: frser-sqlite-datasource@4.0.6
     # Nothing required today (no admin password with anonymous auth); kept so
     # SMTP or OAuth credentials can be added later without touching compose.
     env_file:
@@ -68,6 +76,14 @@ services:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      # Kuma's data, READ-ONLY. The datasource opens it with mode=ro as well;
+      # SQLite reads a WAL database from a read-only mount as long as Kuma's
+      # -wal and -shm files are there, which they are while Kuma runs.
+      #
+      # It is the whole of Kuma's database, notification settings included,
+      # in front of anybody who can open Grafana — the same people as can open
+      # Kuma, both being behind the one Access policy.
+      - kuma-data:/var/lib/kuma:ro
     networks: [edge, monitoring]
     labels:
       - traefik.enable=true
@@ -225,6 +241,32 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # ── Uptime and alerting ─────────────────────────────────────────────────────
+  # Uptime Kuma: every service checked on an interval, the backup's push
+  # monitor (scripts/backup-db.sh), and the alerts. Grafana reads its database
+  # for the overview's uptime row (see grafana above). Moved here from
+  # compose.infra.yaml; same service name and container, so a deploy of this
+  # file does not recreate it.
+  kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: always
+    environment:
+      TZ: ${TZ:-Europe/Prague}
+    volumes:
+      - kuma-data:/app/data
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kuma.rule=Host(`status.meizuno.com`)
+      - traefik.http.routers.kuma.entrypoints=web
+      - traefik.http.services.kuma.loadbalancer.server.port=3001
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
   # ── Profiling ───────────────────────────────────────────────────────────────
   # Stores what the apps push — see PYROSCOPE in this file's header.
   pyroscope:
@@ -257,6 +299,8 @@ networks:
 volumes:
   grafana-data:
     name: meizuno_grafana-data
+  kuma-data:
+    name: meizuno_kuma-data
   vm-data:
     name: meizuno_vm-data
   loki-data:
