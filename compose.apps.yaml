@@ -113,10 +113,15 @@ services:
       - traefik.http.services.money-manager.loadbalancer.healthcheck.interval=2s
       - traefik.http.services.money-manager.loadbalancer.healthcheck.timeout=2s
       - *drain-hook
+    # One core, not half: a request's CPU is spent in bursts (a server-rendered
+    # page is ~75 ms of it, measured under load on a stand with this image),
+    # and a 0.5 quota stretches each burst to twice its length — the page
+    # can't come back in under ~150 ms however idle the host is. Idle, the
+    # app uses next to nothing either way. Memory peaked at ~320 MB.
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "1.0"
           memory: 512M
 
   recipes-book:
