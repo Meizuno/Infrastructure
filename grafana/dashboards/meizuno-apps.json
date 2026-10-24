@@ -26,16 +26,54 @@
           "type": "prometheus",
           "uid": "victoriametrics"
         },
-        "definition": "label_values(python_info, job)",
+        "definition": "label_values({__name__=~\"python_info|nodejs_version_info\"}, job)",
         "query": {
-          "query": "label_values(python_info, job)",
+          "query": "label_values({__name__=~\"python_info|nodejs_version_info\"}, job)",
           "refId": "app"
         },
         "refresh": 2,
         "sort": 1,
         "includeAll": false,
         "multi": false,
-        "description": "An app with its own /metrics (port 9000). Its Pyroscope service_name and its Loki service label are the same name."
+        "description": "An app with its own /metrics (port 9000): a job that reports its runtime, python_info or nodejs_version_info. Its Pyroscope service_name and its Loki service label are the same name."
+      },
+      {
+        "name": "cpu_profile",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoriametrics"
+        },
+        "definition": "query_result(label_set(python_info{job=\"$app\"}, \"profile\", \"process_cpu:cpu:nanoseconds:cpu:nanoseconds\") or label_set(nodejs_version_info{job=\"$app\"}, \"profile\", \"wall:cpu:nanoseconds:wall:nanoseconds\"))",
+        "query": {
+          "query": "query_result(label_set(python_info{job=\"$app\"}, \"profile\", \"process_cpu:cpu:nanoseconds:cpu:nanoseconds\") or label_set(nodejs_version_info{job=\"$app\"}, \"profile\", \"wall:cpu:nanoseconds:wall:nanoseconds\"))",
+          "refId": "cpu_profile"
+        },
+        "regex": "/profile=\"([^\"]+)\"/",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "description": "Pyroscope's CPU profile type for the app's SDK: Python's pyroscope-io and Node's @pyroscope/nodejs name it differently."
+      },
+      {
+        "name": "inuse_profile",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "victoriametrics"
+        },
+        "definition": "query_result(label_set(python_info{job=\"$app\"}, \"profile\", \"memory:inuse_space:bytes:space:bytes\") or label_set(nodejs_version_info{job=\"$app\"}, \"profile\", \"memory:inuse_space:bytes:inuse_space:bytes\"))",
+        "query": {
+          "query": "query_result(label_set(python_info{job=\"$app\"}, \"profile\", \"memory:inuse_space:bytes:space:bytes\") or label_set(nodejs_version_info{job=\"$app\"}, \"profile\", \"memory:inuse_space:bytes:inuse_space:bytes\"))",
+          "refId": "inuse_profile"
+        },
+        "regex": "/profile=\"([^\"]+)\"/",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "description": "Pyroscope's memory-in-use profile type for the app's SDK: Python's pyroscope-io and Node's @pyroscope/nodejs name it differently."
       },
       {
         "name": "level",
@@ -95,7 +133,7 @@
           },
           "options": {
             "mode": "markdown",
-            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range and count every request from the container's start (`increase_pure`), so they are exact right after a deploy too.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day` — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). `/health` is not counted. |\n| **p50 / p95** | Line a route's requests up from fastest to slowest: p50 is the one in the middle (the typical request), p95 the one 95% of them beat (how bad the slow ones get). Estimated from histogram buckets (5, 10, 25, 50, 100, 250, 500 ms, 1, 2.5, 5, 10, 30, 60 s), so `17.5 ms` means *somewhere between 10 and 25 ms*. With only a few requests, p95 is simply the slowest. |\n| **Total time** | Requests × their average duration — exact, not estimated. The table is sorted by it: where the server's time went. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%). |\n| **Memory** | Resident memory of the Python process. Both apps are limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Logs\n\nThe app's own output, from every container it ran in during the range — a rollout's old container included. **Log level** and **Log search** above filter both panels; the search is plain text, any case.\n\n- **level** is Loki's `detected_level`. Forma's JSON lines carry their own; English's and uvicorn's text lines get it from their `ERROR:` / `WARNING:` prefix (Alloy reads it). `unknown` is a line with no level at all — in Forma mostly httpx's `HTTP Request: …`, and the text copy of a traceback whose JSON line is already under error.\n- An English traceback is **one** entry, under the `ERROR:` line that announced it. Forma logs a crash as one JSON line, `unhandled_error`, with the traceback in its `exception` field.\n- Click a line for its fields; **Show context** gives the lines around it.\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
+            "content": "## What this dashboard shows\n\nPick an app above. Everything here comes from the app itself: its own `/metrics` (port 9000, scraped every 30 s) and the profiles it pushes to Pyroscope. Rates are 5-minute averages; the stats and the table cover the whole selected time range and count every request from the container's start (`increase_pure`), so they are exact right after a deploy too.\n\n| Term | Meaning |\n|---|---|\n| **Duration** | Measured inside the app, from the request arriving to the **last byte** of the answer. A stream counts whole: English's session stream includes the model writing the exercises, a Forma assistant turn includes the model's reply. Traefik's latency on the overview adds the network in front. |\n| **route** | The declared route template, e.g. `/api/v1/shared/{public_id}/day`, or `/api/transactions/:id` in money-manager — never the real path, which can carry a credential. `static` is the built client's files, `unmatched` is anything no route matched (404s). money-manager renders pages on the server: `page` is one of them, and its 404s are pages too. The health check is not counted. |\n| **p50 / p95** | Line a route's requests up from fastest to slowest: p50 is the one in the middle (the typical request), p95 the one 95% of them beat (how bad the slow ones get). Estimated from histogram buckets (5, 10, 25, 50, 100, 250, 500 ms, 1, 2.5, 5, 10, 30, 60 s), so `17.5 ms` means *somewhere between 10 and 25 ms*. With only a few requests, p95 is simply the slowest. |\n| **Total time** | Requests × their average duration — exact, not estimated. The table is sorted by it: where the server's time went. |\n| **status** | A class: `2xx`, `3xx`, `4xx`, `5xx`. `none` means no response was ever started — an unhandled error on its way to a 500, or a client that left first. |\n| **CPU** | % of **one** core. Limits: english 0.5 core (50%), forma 2 cores (200%), money-manager 0.5 core (50%). |\n| **Memory** | Resident memory of the app's process (Python, or Node for money-manager). Every app is limited to 512 MiB; above it the container is OOM-killed. |\n| **instance** | One per container. During `docker rollout` two exist for a moment, so per-instance panels briefly show both. |\n\n## Logs\n\nThe app's own output, from every container it ran in during the range — a rollout's old container included. **Log level** and **Log search** above filter both panels; the search is plain text, any case.\n\n- **level** is Loki's `detected_level`. Forma's JSON lines carry their own; English's and uvicorn's text lines get it from their `ERROR:` / `WARNING:` prefix (Alloy reads it). `unknown` is a line with no level at all — in Forma mostly httpx's `HTTP Request: …`, and the text copy of a traceback whose JSON line is already under error.\n- An English traceback is **one** entry, under the `ERROR:` line that announced it. Forma logs a crash as one JSON line, `unhandled_error`, with the traceback in its `exception` field.\n- Click a line for its fields; **Show context** gives the lines around it.\n\n## Profiles (bottom row)\n\n- **CPU by function** — where CPU time went, summed over every request in the range. Only time **on** the CPU: a request awaiting Postgres or OpenAI is on no stack while it waits, so \"slow because waiting\" shows in Duration and not here. For money-manager (Node) it is the CPU time of wall-clock samples — the same thing, measured another way. Its `Non JS threads activity` is CPU spent on the process's other threads: Prisma's query engine, V8's garbage-collector and compiler helpers, Node's I/O pool.\n- **Memory allocated by function** — bytes allocated during the range: who churns memory. Python apps only — Node's heap profiler keeps no record of memory already freed.\n- **Memory in use by function** — sampled heap still held: who keeps memory. A leak grows here.\n- Click a frame to zoom. **Explore → Pyroscope** can diff two time ranges."
           }
         }
       ]
@@ -148,7 +186,7 @@
           "values": false
         }
       },
-      "description": "Every request except /health, over the selected range."
+      "description": "Every request except the health check, over the selected range."
     },
     {
       "type": "stat",
@@ -313,7 +351,7 @@
           "values": false
         }
       },
-      "description": "The busiest container, 5-minute average. The limit is per container: english 50%, forma 200%."
+      "description": "The busiest container, 5-minute average. The limit is per container: english 50%, forma 200%, money-manager 50%."
     },
     {
       "type": "stat",
@@ -803,7 +841,7 @@
           "sort": "desc"
         }
       },
-      "description": "Per container. Limits: english 50%, forma 200%. The profiles below say which functions spent it."
+      "description": "Per container. Limits: english 50%, forma 200%, money-manager 50%. The profiles below say which functions spent it."
     },
     {
       "type": "timeseries",
@@ -1090,7 +1128,7 @@
             "uid": "pyroscope"
           },
           "queryType": "profile",
-          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "profileTypeId": "$cpu_profile",
           "labelSelector": "{service_name=\"$app\"}",
           "groupBy": []
         }
@@ -1123,7 +1161,7 @@
           "groupBy": []
         }
       ],
-      "description": "Bytes allocated during the range (sampled). Who churns memory."
+      "description": "Bytes allocated during the range (sampled). Who churns memory. Python apps only: Node's heap profiler records only what is still held, so money-manager has nothing here."
     },
     {
       "type": "flamegraph",
@@ -1146,7 +1184,7 @@
             "uid": "pyroscope"
           },
           "queryType": "profile",
-          "profileTypeId": "memory:inuse_space:bytes:space:bytes",
+          "profileTypeId": "$inuse_profile",
           "labelSelector": "{service_name=\"$app\"}",
           "groupBy": []
         }

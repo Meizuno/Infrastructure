@@ -21,8 +21,9 @@
 #
 # PYROSCOPE: the server stores profiles, it does not collect them. Each app
 # pushes its own with a Pyroscope SDK — today english and forma (Python,
-# pyroscope-io), switched on by the PYROSCOPE_SERVER_ADDRESS in their compose
-# files. An app without the SDK has no profiles. The alternative, alloy's eBPF
+# pyroscope-io) and money-manager (Node, @pyroscope/nodejs), switched on by the
+# PYROSCOPE_SERVER_ADDRESS in their compose files. An app without the SDK has
+# no profiles. The alternative, alloy's eBPF
 # profiler, needs `privileged: true` + `pid: host` — deliberately NOT set here,
 # since it would widen the container boundary the README's security posture
 # section is built around.

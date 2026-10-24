@@ -53,6 +53,9 @@ scrape_configs:
   # at. DNS discovery rather than a static target: `docker rollout` runs two
   # replicas side by side, and the service name resolves to both, so each is
   # scraped as its own instance instead of the scrape flipping between them.
+  # The job is named after the compose service, which is also the app's
+  # service_name in Pyroscope and its service label in Loki: the Apps
+  # dashboard joins the three on that one name.
   - job_name: english
     dns_sd_configs:
       - names: ["english"]
@@ -61,5 +64,10 @@ scrape_configs:
   - job_name: forma
     dns_sd_configs:
       - names: ["forma"]
+        type: A
+        port: 9000
+  - job_name: money-manager
+    dns_sd_configs:
+      - names: ["money-manager"]
         type: A
         port: 9000

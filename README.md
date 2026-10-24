@@ -313,12 +313,15 @@ hostname is load-bearing. Datasources and dashboards are provisioned from
   by level and a text search), and CPU and memory flame graphs by function.
 - **Node Exporter Full** — the host in detail.
 
-**Instrumented apps.** Forma and English serve Prometheus metrics on a port of
-their own (`:9000`, `METRICS_PORT`) that no Traefik router points at, and push
-profiles to Pyroscope (`PYROSCOPE_SERVER_ADDRESS`). Both work with several
-uvicorn workers: one worker serves the port and reports all of them. The other
-apps are not instrumented yet — they appear through Traefik's per-router
-figures and their logs.
+**Instrumented apps.** Forma, English and Money Manager serve Prometheus
+metrics on a port of their own (`:9000`, `METRICS_PORT` under each app's
+prefix) that no Traefik router points at, and push profiles to Pyroscope
+(`PYROSCOPE_SERVER_ADDRESS`, likewise). Forma and English work with several
+uvicorn workers: one worker serves the port and reports all of them. Money
+Manager is a single Node process; its SDK sends CPU and memory-in-use profiles
+under other type names than the Python one, and the Apps dashboard picks the
+right ones per app. The other apps are not instrumented yet — they appear
+through Traefik's per-router figures and their logs.
 
 **The uptime row** reads Uptime Kuma's SQLite file through the
 `frser-sqlite-datasource` plugin, installed on start by
