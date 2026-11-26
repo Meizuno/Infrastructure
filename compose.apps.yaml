@@ -149,28 +149,6 @@ services:
           cpus: "0.5"
           memory: 512M
 
-  notes:
-    <<: *nuxt-defaults
-    image: ghcr.io/meizuno/notes:latest
-    environment:
-      NUXT_AUTH_SERVICE_URL: https://auth.meizuno.com
-      NUXT_COOKIE_DOMAIN: .meizuno.com
-      NUXT_DATABASE_URL: postgres://notes_user:${NOTES_DB_PASSWORD}@postgres:5432/notes?sslmode=disable
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
-      - traefik.http.routers.notes.entrypoints=web
-      - traefik.http.services.notes.loadbalancer.server.port=3000
-      - traefik.http.services.notes.loadbalancer.healthcheck.path=/api/health
-      - traefik.http.services.notes.loadbalancer.healthcheck.interval=2s
-      - traefik.http.services.notes.loadbalancer.healthcheck.timeout=2s
-      - *drain-hook
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-
 networks:
   edge:
     name: meizuno_edge

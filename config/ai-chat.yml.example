@@ -17,7 +17,7 @@ pricing:
 # MCP servers the chat connects to. The shared key is sent as x-api-key.
 mcpServers:
   - name: notes
-    url: http://notes:3000/api/mcp
+    url: http://notes:8080/api/mcp
   - name: money-manager
     url: http://money-manager:3000/api/mcp
   - name: recipes-book

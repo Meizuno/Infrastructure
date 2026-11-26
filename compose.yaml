@@ -12,6 +12,8 @@ name: meizuno
 #                          + JWT auth)
 #   compose.english.yaml — english (FastAPI + Vue SPA, self-contained Google
 #                          OAuth + session cookie, calls OpenAI)
+#   compose.notes.yaml   — notes (FastAPI + Vue SPA, self-contained Google
+#                          OAuth + JWT, MCP for ai-chat)
 #   compose.monitoring.yaml — grafana + victoria-metrics + loki/alloy +
 #                          pyroscope + the exporters + uptime kuma
 #
@@ -30,4 +32,5 @@ include:
   - compose.ai-chat.yaml
   - compose.forma.yaml
   - compose.english.yaml
+  - compose.notes.yaml
   - compose.monitoring.yaml

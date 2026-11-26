@@ -35,9 +35,9 @@ and Grafana watching all of it.
 | `ai-chat` | `chat.meizuno.com` | Nuxt chat over OpenAI, MCP hub, runs code in `sandbox` | `chat`, plus files in `meizuno_ai-chat-data` |
 | `money-manager` | `money.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `money_manager` |
 | `recipes-book` | `recipes.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `recipes_book` |
-| `notes` | `notes.meizuno.com` | Nuxt + Prisma, signs in through `authentication` | `notes` |
 | `forma` | `forma.meizuno.com` | FastAPI + Vue: food and body diary with an assistant; its own Google OAuth | `forma` |
 | `english` | `english.meizuno.com` | FastAPI + Vue: daily English practice over OpenAI; its own Google OAuth | `english` |
+| `notes` | `notes.meizuno.com` | FastAPI + Vue: Markdown vault with an MCP endpoint for ai-chat; its own Google OAuth | `notes` |
 | `sandbox` | — | Python runner for ai-chat's `run_code`, built from `./sandbox`, no network | — |
 
 **Infrastructure and monitoring** — single instances with fixed names, applied
@@ -63,10 +63,11 @@ with `docker compose up -d <service>`:
   | File | Holds |
   |---|---|
   | `compose.infra.yaml` | ingress (`traefik`, `cloudflared`) and data (`postgres`, `redis`) |
-  | `compose.apps.yaml` | the SSO apps: `authentication`, `money-manager`, `recipes-book`, `notes` |
+  | `compose.apps.yaml` | the SSO apps: `authentication`, `money-manager`, `recipes-book` |
   | `compose.ai-chat.yaml` | `ai-chat` and its `sandbox` |
   | `compose.forma.yaml` | `forma` |
   | `compose.english.yaml` | `english` |
+  | `compose.notes.yaml` | `notes` |
   | `compose.monitoring.yaml` | Grafana, what feeds it, and Uptime Kuma |
 
 - **No host ports.** `cloudflared` reaches Traefik over a docker network, so
@@ -124,7 +125,7 @@ On a fresh host:
 ./scripts/install-prereqs.sh        # docker-rollout plugin + UDP buffers for cloudflared QUIC
 
 # 2. Secrets and config
-./scripts/secrets.sh decrypt        # .env, forma.env, english.env from the SOPS files
+./scripts/secrets.sh decrypt        # .env, forma.env, english.env, notes.env from the SOPS files
                                     # (or copy each *.env.example and fill it in)
 cp monitoring.env.example monitoring.env
 cp config/ai-chat.yml.example config/ai-chat.yml
@@ -344,7 +345,7 @@ The auth service signs access tokens with **EdDSA** (Ed25519, asymmetric). The
 `authentication` container — never an env value, never in `docker inspect`, never
 in git. The **public** half is published at `auth.meizuno.com/.well-known/jwks.json`.
 
-Consumers (notes, money-manager, recipes-book, ai-chat) **do not hold any signing
+Consumers (money-manager, recipes-book, ai-chat) **do not hold any signing
 key** — they validate every request against the auth service's `/validate`
 endpoint. So signing changes are an auth-service-only concern: no app changes, no
 app redeploys.
@@ -395,7 +396,8 @@ snapshots and backups — only values are encrypted, keys stay readable for diff
 - `secrets.enc.env` — canonical, **committed**, values encrypted.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
 - **Per-app files** for the self-contained apps: `secrets.forma.enc.env` →
-  `forma.env` and `secrets.english.enc.env` → `english.env`, each loaded by its
+  `forma.env`, `secrets.english.enc.env` → `english.env` and
+  `secrets.notes.enc.env` → `notes.env`, each loaded by its
   compose file through `env_file`. Their database passwords stay in the main
   `.env`, because Postgres init reads them too.
 - `monitoring.env` — postgres-exporter's connection string (see
@@ -443,10 +445,10 @@ so the simpler 0600-`.env` flow above is the default.
   SQL
   ```
 - **Schema migrations run from the apps themselves.** The Prisma apps apply
-  theirs from the image's entrypoint (Notes and ai-chat run
+  theirs from the image's entrypoint (ai-chat runs
   `prisma migrate deploy` on start — no `CREATEDB` needed, unlike `migrate dev`);
-  Forma and English apply their SQL migrations on boot under an advisory lock,
-  so two replicas starting together during a rollout cannot both migrate.
+  Forma, English and Notes apply their SQL migrations on boot under an advisory
+  lock, so two replicas starting together during a rollout cannot both migrate.
 - **Forma's product catalogue import** is never automatic — the command, and
   why it runs as a separate `docker compose run`, are in `compose.forma.yaml`.
 
@@ -471,6 +473,17 @@ so the simpler 0600-`.env` flow above is the default.
   `secrets.calories.enc.env`; rename the plaintext file and encrypt it:
   `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
   Until it is renamed, `.gitignore` covers `forma.env`, **not** `calories.env`.
+- **Notes: the SSO → its own sign-in.** The Python image signs people in
+  itself. Before its first deploy:
+  1. Register `https://notes.meizuno.com/api/auth/callback` on Notes' Google
+     OAuth client.
+  2. Run `./scripts/secrets.sh edit notes` and fill in what `notes.env.example`
+     lists, then `./scripts/secrets.sh decrypt`.
+
+  Right after the deploy, before anybody signs in, import the SSO's users
+  with their ids, so every `PRIVATE` note keeps its owner. The command is in
+  `compose.notes.yaml`. ai-chat then needs a Notes API token in place of the
+  SSO token.
 - **Retired monitoring.** Beszel, Homepage and Vector → VictoriaLogs were removed
   when Grafana arrived. Their hostnames — `beszel.meizuno.com`,
   `home.meizuno.com`, `logs.meizuno.com` — can go from the tunnel.

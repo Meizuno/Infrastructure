@@ -1,0 +1,107 @@
+# notes — a multi-user Markdown vault (github.com/Meizuno/Notes): FastAPI
+# (Python 3.12, asyncpg) that also serves the built Vue SPA, so the API, the
+# pages and the SEO pre-render for public notes are ONE origin on :8080.
+#
+# Self-contained auth, like forma and english: its OWN Google OAuth client and
+# its OWN HS256 access tokens + refresh tokens in its database, limited to
+# NOTES_ALLOWED_EMAILS. It no longer delegates to `authentication`, so it takes
+# NOTES_GOOGLE_* + NOTES_JWT_SECRET rather than the auth-service vars, and its
+# cookies are host-only (notes.meizuno.com). ai-chat reaches /api/mcp with a
+# personal API token (notes_pat_…, made in the app's user menu) as
+# `Authorization: Bearer`.
+#
+# Settings are read by pydantic-settings with the NOTES_ prefix (PORT,
+# CLIENT_DIR and RUN_MIGRATIONS bare, as the image sets them), so every var
+# below maps to a field in server/notes/shared/config.py.
+#
+# Schema: applied by the app itself on startup (server/migrations/*.sql under a
+# Postgres advisory lock). 000001 is an idempotent baseline of the old Prisma
+# schema, so the existing `notes` database is taken over as it is.
+#
+# Moving from the SSO, once, right after the first deploy of the Python image
+# and BEFORE anybody signs in — it imports the SSO's users with their ids, so
+# every PRIVATE note keeps its owner:
+#
+#   docker compose exec notes python scripts/import_sso_users.py \
+#     postgres://auth_user:<AUTH_DB_PASSWORD>@postgres:5432/authentication --dry-run
+#   # then the same without --dry-run
+#
+# Assembled into the `meizuno` project via compose.yaml (include:). Anchors are
+# file-scoped in YAML, so the app defaults are declared here too.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+# Same hook as the apps in compose.apps.yaml (anchors are file-scoped, so it is
+# repeated here). `docker rollout notes` reads it from the label.
+x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
+
+services:
+  notes:
+    <<: *app-defaults
+    image: ghcr.io/meizuno/notes:latest
+    # python-slim ships neither curl nor wget — probe /health with the stdlib.
+    # The image has its own HEALTHCHECK; this one is tighter, so `docker
+    # rollout` sees the new replica healthy sooner.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    environment:
+      # The DB password is shared with Postgres role creation (postgres/init
+      # reads NOTES_DB_PASSWORD too), so it stays in the main .env. No sslmode:
+      # Postgres is reached over the internal docker network in plaintext.
+      NOTES_DATABASE_URL: postgresql://notes_user:${NOTES_DB_PASSWORD}@postgres:5432/notes
+      # Public, not secrets. The redirect URL must match the one registered on
+      # Notes' Google OAuth client exactly (see notes.env.example). The site
+      # URL is the canonical origin for the sitemap, robots.txt and the
+      # canonical / og: tags of public notes.
+      NOTES_GOOGLE_REDIRECT_URL: https://notes.meizuno.com/api/auth/callback
+      NOTES_SITE_URL: https://notes.meizuno.com
+    # Its OWN secrets (session signing key, Google OAuth client, the sign-in
+    # allow-list) live in their OWN SOPS-managed file, apart from the shared
+    # stack secrets — the split forma and english use. env_file injects them
+    # with their real names. Materialize it with `./scripts/secrets.sh decrypt`
+    # (see notes.env.example).
+    #
+    # `required: false`, as for english: a missing env_file makes compose refuse
+    # to PARSE the merged project, so every `docker compose` command for the
+    # whole stack would fail until it exists. A missing secret still fails
+    # loudly: the image refuses to start without NOTES_JWT_SECRET, or with the
+    # redirect URL above but no Google client.
+    env_file:
+      - path: notes.env
+        required: false
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.notes.rule=Host(`notes.meizuno.com`)
+      - traefik.http.routers.notes.entrypoints=web
+      - traefik.http.services.notes.loadbalancer.server.port=8080
+      # /api/health rather than /health (the app answers both, drain included):
+      # it is the path the Nuxt app had, and Traefik refuses to merge a service
+      # whose replicas disagree on it — so the first rollout, Nuxt beside
+      # Python, would otherwise drop `notes` from routing for its overlap.
+      - traefik.http.services.notes.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.notes.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.notes.loadbalancer.healthcheck.timeout=2s
+      # Drain before stop: the app answers 503 on /health while /tmp/drain
+      # exists, so Traefik drops the old replica and in-flight requests finish.
+      - *drain-hook
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
