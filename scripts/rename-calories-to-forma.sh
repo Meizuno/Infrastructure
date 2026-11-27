@@ -12,7 +12,7 @@
 # compose up -d` — the new compose file points at postgres://forma_user@.../forma
 # and the app will not start until these exist:
 #
-#   ./scripts/secrets.sh decrypt                  # writes .env + forma.env
+#   ./scripts/secrets.sh decrypt                  # writes .env + apps/forma/forma.env
 #   ./scripts/rename-calories-to-forma.sh         # uses ./.env
 #   docker compose up -d forma
 #

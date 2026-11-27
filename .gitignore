@@ -1,6 +1,10 @@
 # Secrets & local config — never commit. The plaintext env files are derived
 # from their SOPS-encrypted sources (secrets*.enc.env, which ARE committed).
 .env
+# Each app's plaintext secrets, beside its compose file (apps/forma/forma.env, …).
+apps/*/*.env
+# The same files where they lived before apps/<app>/ — kept ignored until the
+# host's copies are deleted.
 forma.env
 english.env
 notes.env

@@ -38,7 +38,7 @@ and Grafana watching all of it.
 | `forma` | `forma.meizuno.com` | FastAPI + Vue: food and body diary with an assistant; its own Google OAuth | `forma` |
 | `english` | `english.meizuno.com` | FastAPI + Vue: daily English practice over OpenAI; its own Google OAuth | `english` |
 | `notes` | `notes.meizuno.com` | FastAPI + Vue: Markdown vault with an MCP endpoint for ai-chat; its own Google OAuth | `notes` |
-| `sandbox` | — | Python runner for ai-chat's `run_code`, built from `./sandbox`, no network | — |
+| `sandbox` | — | Python runner for ai-chat's `run_code`, built from `apps/ai-chat/sandbox`, no network | — |
 
 **Infrastructure and monitoring** — single instances with fixed names, applied
 with `docker compose up -d <service>`:
@@ -55,20 +55,23 @@ with `docker compose up -d <service>`:
 
 ## How it works
 
-- **Files by concern, one project.** `compose.yaml` is a thin `include:` of
+- **A folder per app, one project.** `compose.yaml` is a thin `include:` of
   the files below. They merge into a single `meizuno` project, so
   `docker compose` and `docker rollout` see the whole stack — the split is for
-  reading, not isolation.
+  reading, not isolation. The platform stays at the root; each app's folder
+  holds its compose file and whatever belongs to it alone.
 
-  | File | Holds |
+  | Path | Holds |
   |---|---|
   | `compose.infra.yaml` | ingress (`traefik`, `cloudflared`) and data (`postgres`, `redis`) |
-  | `compose.apps.yaml` | the SSO apps: `authentication`, `money-manager`, `recipes-book` |
-  | `compose.ai-chat.yaml` | `ai-chat` and its `sandbox` |
-  | `compose.forma.yaml` | `forma` |
-  | `compose.english.yaml` | `english` |
-  | `compose.notes.yaml` | `notes` |
   | `compose.monitoring.yaml` | Grafana, what feeds it, and Uptime Kuma |
+  | `apps/authentication/` | the SSO |
+  | `apps/money-manager/`, `apps/recipes-book/` | the Nuxt apps that sign in through it |
+  | `apps/ai-chat/` | `ai-chat`, and its `sandbox/` source |
+  | `apps/forma/`, `apps/english/`, `apps/notes/` | each app, its `<app>.env.example`, and on the host its plaintext `<app>.env` |
+
+  Paths in an app's compose file are relative to its folder. Variables come
+  from the root `.env` for all of them, as before.
 
 - **No host ports.** `cloudflared` reaches Traefik over a docker network, so
   nothing is published on the VM.
@@ -125,7 +128,7 @@ On a fresh host:
 ./scripts/install-prereqs.sh        # docker-rollout plugin + UDP buffers for cloudflared QUIC
 
 # 2. Secrets and config
-./scripts/secrets.sh decrypt        # .env, forma.env, english.env, notes.env from the SOPS files
+./scripts/secrets.sh decrypt        # .env and apps/{forma,english,notes}/<app>.env from the SOPS files
                                     # (or copy each *.env.example and fill it in)
 cp monitoring.env.example monitoring.env
 cp config/ai-chat.yml.example config/ai-chat.yml
@@ -184,7 +187,7 @@ container, so localhost is its own loopback.
 
 `calories.meizuno.com` is Forma's former host. It stays in the tunnel so Traefik
 can answer it with a **301** to `forma.meizuno.com` (labels in
-`compose.forma.yaml`). Only the canonical host serves the app: Forma signs
+`apps/forma/compose.yaml`). Only the canonical host serves the app: Forma signs
 host-only cookies and has a single Google OAuth redirect URI.
 
 ## Deploy
@@ -202,12 +205,12 @@ files. On the host, `git pull`, then apply each kind of change the way it needs:
 
 | What changed | Apply with |
 |---|---|
-| a service's definition in `compose*.yaml` | `docker compose up -d <service>` — recreates only what changed |
+| a service's definition in `compose*.yaml` or `apps/*/compose.yaml` | `docker compose up -d <service>` — recreates only what changed (an app: `docker rollout <app>`) |
 | a file mounted from `config/` (scrape config, Loki, Alloy, Pyroscope) | `docker compose restart <service>` — compose sees no change in a file it mounts, so `up -d` does nothing |
 | `grafana/dashboards/*.json` | nothing — Grafana re-reads them every 30 s |
 | `grafana/provisioning/` (datasources) | `docker compose restart grafana` |
 | `scripts/` | nothing — the backup timer runs them from this checkout |
-| `sandbox/` | `docker compose up -d --build sandbox` |
+| `apps/ai-chat/sandbox/` | `docker compose up -d --build sandbox` |
 | a secret | `./scripts/secrets.sh decrypt`, then `up -d` the service that reads it |
 
 ## Rollback
@@ -396,9 +399,10 @@ snapshots and backups — only values are encrypted, keys stay readable for diff
 - `secrets.enc.env` — canonical, **committed**, values encrypted.
 - `.env` — derived, **gitignored**, `0600`, what docker compose actually reads.
 - **Per-app files** for the self-contained apps: `secrets.forma.enc.env` →
-  `forma.env`, `secrets.english.enc.env` → `english.env` and
-  `secrets.notes.enc.env` → `notes.env`, each loaded by its
-  compose file through `env_file`. Their database passwords stay in the main
+  `apps/forma/forma.env`, `secrets.english.enc.env` → `apps/english/english.env`
+  and `secrets.notes.enc.env` → `apps/notes/notes.env`, each loaded by the
+  compose file beside it through `env_file`. The encrypted files stay at the
+  root. Their database passwords stay in the main
   `.env`, because Postgres init reads them too.
 - `monitoring.env` — postgres-exporter's connection string (see
   `monitoring.env.example`); plaintext, gitignored.
@@ -450,7 +454,7 @@ so the simpler 0600-`.env` flow above is the default.
   Forma, English and Notes apply their SQL migrations on boot under an advisory
   lock, so two replicas starting together during a rollout cannot both migrate.
 - **Forma's product catalogue import** is never automatic — the command, and
-  why it runs as a separate `docker compose run`, are in `compose.forma.yaml`.
+  why it runs as a separate `docker compose run`, are in `apps/forma/compose.yaml`.
 
 ### One-time migrations (existing clusters only)
 
@@ -465,14 +469,14 @@ so the simpler 0600-`.env` flow above is the default.
   resets the role's password to `FORMA_DB_PASSWORD`, and re-applies the CONNECT
   confinement. The secrets go with it:
   ```sh
-  mv calories.env forma.env          # plaintext, gitignored — a plain mv, not git mv
+  mv calories.env apps/forma/forma.env   # plaintext, gitignored — a plain mv, not git mv
   ./scripts/secrets.sh edit          # CALORIES_DB_PASSWORD -> FORMA_DB_PASSWORD
   ./scripts/secrets.sh decrypt       # re-derive .env from secrets.enc.env
   ```
   A host that predates per-app SOPS files has a plaintext `calories.env` and no
   `secrets.calories.enc.env`; rename the plaintext file and encrypt it:
-  `sops -e --input-type dotenv --output-type dotenv forma.env > secrets.forma.enc.env`.
-  Until it is renamed, `.gitignore` covers `forma.env`, **not** `calories.env`.
+  `sops -e --input-type dotenv --output-type dotenv apps/forma/forma.env > secrets.forma.enc.env`.
+  Until it is renamed, `.gitignore` covers `apps/forma/forma.env`, **not** `calories.env`.
 - **Notes: the SSO → its own sign-in.** The Python image signs people in
   itself. Before its first deploy:
   1. Register `https://notes.meizuno.com/api/auth/callback` on Notes' Google
@@ -482,8 +486,22 @@ so the simpler 0600-`.env` flow above is the default.
 
   Right after the deploy, before anybody signs in, import the SSO's users
   with their ids, so every `PRIVATE` note keeps its owner. The command is in
-  `compose.notes.yaml`. ai-chat then needs a Notes API token in place of the
+  `apps/notes/compose.yaml`. ai-chat then needs a Notes API token in place of the
   SSO token.
+- **The apps moved into `apps/<app>/`.** The configs of all the services are
+  unchanged, so nothing restarts. The only file that moves on the host is each
+  app's plaintext secrets, and **forma's must be there before the next
+  `docker compose` command**: its `env_file` is required, so compose refuses
+  the whole project without it, and that includes the apps' deploys. Right
+  after `git pull`:
+  ```sh
+  ./scripts/secrets.sh decrypt            # writes apps/{forma,english,notes}/<app>.env
+  # An app with no secrets.<app>.enc.env: move its plaintext file in by hand,
+  # e.g. mv notes.env apps/notes/notes.env
+  rm forma.env english.env notes.env      # the old copies at the root, once the new ones are there
+  docker compose up -d --dry-run          # expect no recreate
+  ```
+  Each app reads its new path on its next `docker rollout`.
 - **Retired monitoring.** Beszel, Homepage and Vector → VictoriaLogs were removed
   when Grafana arrived. Their hostnames — `beszel.meizuno.com`,
   `home.meizuno.com`, `logs.meizuno.com` — can go from the tunnel.

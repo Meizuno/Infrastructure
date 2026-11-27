@@ -1,0 +1,87 @@
+# authentication — the central SSO (github.com/Meizuno/Authentication): Go,
+# JWT access + refresh tokens, Google OAuth, at auth.meizuno.com. money-manager,
+# recipes-book and ai-chat sign in through it.
+
+# Deployed with zero downtime via `docker rollout`, so it MUST NOT declare
+# `container_name:` or `ports:` — rollout transiently runs 2 replicas behind
+# Traefik. postgres and the networks live in compose.infra.yaml at the root;
+# depends_on resolves across the merged `meizuno` project, which compose.yaml
+# assembles with include:. Anchors are file-scoped in YAML, so the defaults
+# this file uses are declared here.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  # Give in-flight requests time to drain when rollout stops the old container.
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  authentication:
+    <<: *app-defaults
+    image: ghcr.io/meizuno/authentication:latest
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgres://auth_user:${AUTH_DB_PASSWORD}@postgres:5432/authentication?sslmode=disable
+      # Access tokens are signed with EdDSA (asymmetric). The private key is
+      # mounted as a file secret (never an env value) and the public half is
+      # published at /.well-known/jwks.json. JWT_SECRET is kept ONLY to verify
+      # in-flight HS256 tokens during the cutover window — blank it in .env and
+      # redeploy once they have expired (≤15 min). See README → "Token signing".
+      JWT_SIGNING_ALG: EdDSA
+      JWT_PRIVATE_KEY_FILE: /run/secrets/jwt_private_key
+      # Verification-only previous public keys for a seamless key rotation overlap
+      # (empty in steady state; filled briefly by scripts/rotate-jwt-key.sh).
+      JWT_PREVIOUS_PUBLIC_KEYS_FILE: /run/secrets/jwt_previous_public_keys
+      JWT_SECRET: ${JWT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: https://auth.meizuno.com/google/callback
+      # Allowed login emails and post-login redirect URLs are managed at runtime
+      # in the admin console (auth.meizuno.com/admin), not here. ALLOWED_EMAILS /
+      # ALLOWED_REDIRECT_URLS still work as an env break-glass floor if ever set.
+      # Emails granted the admin role (the bootstrap admin set; synced on login).
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      # Issue the access/refresh cookies on the parent domain so one sign-in
+      # is shared across every *.meizuno.com app.
+      COOKIE_DOMAIN: .meizuno.com
+      GIN_MODE: release
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.auth.rule=Host(`auth.meizuno.com`)
+      - traefik.http.routers.auth.entrypoints=web
+      - traefik.http.services.auth.loadbalancer.server.port=8080
+    secrets:
+      - jwt_private_key
+      - jwt_previous_public_keys
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal
+
+# File-based secrets bind-mounted to /run/secrets/<name> in the target service.
+# The source files live on the host under secrets/ at the repo root (gitignored),
+# where scripts/gen-jwt-key.sh and rotate-jwt-key.sh write them — hence ../../.
+# Generate the signing key before the first `docker compose up`.
+secrets:
+  jwt_private_key:
+    file: ../../secrets/jwt_private_key.pem
+  # Public keys (not secret) of just-retired signing keys, mounted for a rotation
+  # overlap. Empty in steady state; managed by scripts/rotate-jwt-key.sh.
+  jwt_previous_public_keys:
+    file: ../../secrets/jwt_previous_public_keys.pem

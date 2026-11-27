@@ -7,9 +7,12 @@
 # compose reads at runtime; the deploy pipeline regenerates them on every deploy.
 #
 #   secrets.enc.env           → .env           (shared stack secrets)
-#   secrets.forma.enc.env     → forma.env      (forma app secrets; env_file)
-#   secrets.english.enc.env   → english.env    (english app secrets; env_file)
-#   secrets.notes.enc.env     → notes.env      (notes app secrets; env_file)
+#   secrets.forma.enc.env     → apps/forma/forma.env       (forma; env_file)
+#   secrets.english.enc.env   → apps/english/english.env   (english; env_file)
+#   secrets.notes.enc.env     → apps/notes/notes.env       (notes; env_file)
+#
+# The encrypted files stay at the root; each plaintext one is written into its
+# app's folder, beside the compose file that loads it.
 #
 # The age PRIVATE key (default ~/.config/sops/age/keys.txt) never leaves the
 # host and is the only thing that can decrypt — back it up somewhere safe;
@@ -32,9 +35,9 @@ PLAIN=.env
 # that exist; add a line to give another app its own file.
 PAIRS=(
   "secrets.enc.env:.env"
-  "secrets.forma.enc.env:forma.env"
-  "secrets.english.enc.env:english.env"
-  "secrets.notes.enc.env:notes.env"
+  "secrets.forma.enc.env:apps/forma/forma.env"
+  "secrets.english.enc.env:apps/english/english.env"
+  "secrets.notes.enc.env:apps/notes/notes.env"
   "secrets.monitoring.enc.env:monitoring.env"
 )
 AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
@@ -93,6 +96,11 @@ EOF
       ( umask 077; sops -d "$enc" > "$plain" )
       chmod 600 "$plain"
       echo "→ wrote $plain (0600) from $enc"
+    done
+    # Plaintext files from before the apps moved into apps/<app>/: nothing reads
+    # them any more. Said, not deleted — removing a secrets file is a person's call.
+    for old in forma.env english.env notes.env; do
+      [ -f "$old" ] && echo "! $old at the root is left over from before apps/ — nothing reads it; delete it"
     done
     ;;
   view)

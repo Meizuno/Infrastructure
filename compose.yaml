@@ -1,36 +1,45 @@
 name: meizuno
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Unified stack for the meizuno ecosystem, assembled from files by concern:
+# Unified stack for the meizuno ecosystem. The platform sits at the root and
+# every application has a folder of its own:
 #
-#   compose.infra.yaml   — ingress (traefik, cloudflared), data (postgres,
-#                          redis)
-#   compose.apps.yaml    — the SSO-delegating application services (rollout)
-#   compose.ai-chat.yaml — ai-chat + its locally-built code-execution sandbox
-#                          on an isolated (no-egress) network
-#   compose.forma.yaml   — forma, ex-calories (self-contained Google OAuth
-#                          + JWT auth)
-#   compose.english.yaml — english (FastAPI + Vue SPA, self-contained Google
-#                          OAuth + session cookie, calls OpenAI)
-#   compose.notes.yaml   — notes (FastAPI + Vue SPA, self-contained Google
-#                          OAuth + JWT, MCP for ai-chat)
-#   compose.monitoring.yaml — grafana + victoria-metrics + loki/alloy +
-#                          pyroscope + the exporters + uptime kuma
+#   compose.infra.yaml       — ingress (traefik, cloudflared), data (postgres,
+#                              redis)
+#   compose.monitoring.yaml  — grafana + victoria-metrics + loki/alloy +
+#                              pyroscope + the exporters + uptime kuma
+#   apps/<app>/compose.yaml  — one application, with what belongs to it alone
+#                              beside it (its env example, its plaintext
+#                              secrets file, ai-chat's sandbox):
+#     authentication   the central SSO (Go)
+#     money-manager    Nuxt, signs in through authentication
+#     recipes-book     Nuxt, signs in through authentication
+#     ai-chat          Nuxt chat + its code sandbox on a no-egress network
+#     forma            FastAPI + Vue, its own Google OAuth
+#     english          FastAPI + Vue, its own Google OAuth, calls OpenAI
+#     notes            FastAPI + Vue, its own Google OAuth, MCP for ai-chat
 #
 #   Internet → Cloudflare edge → cloudflared (token) → traefik:80 → app (by Host)
 #                                                                  ↘ postgres (internal)
 #
 # Nothing is published to the host: cloudflared reaches Traefik over the `edge`
 # docker network. Traefik routes by Host header using the labels on each app.
-# `docker compose` / `docker rollout` all operate on the
-# whole merged project — splitting the files changes layout, not behaviour.
+# `docker compose` / `docker rollout` all operate on the whole merged project —
+# splitting the files changes layout, not behaviour.
+#
+# Paths inside an included file are relative to THAT file's folder
+# (apps/forma/compose.yaml's `forma.env` is apps/forma/forma.env). Variables
+# (${FORMA_DB_PASSWORD}, …) come from the root .env for every file, as before:
+# keep the app folders free of a `.env` of their own.
 # ─────────────────────────────────────────────────────────────────────────────
 
 include:
   - compose.infra.yaml
-  - compose.apps.yaml
-  - compose.ai-chat.yaml
-  - compose.forma.yaml
-  - compose.english.yaml
-  - compose.notes.yaml
+  - apps/authentication/compose.yaml
+  - apps/money-manager/compose.yaml
+  - apps/recipes-book/compose.yaml
+  - apps/ai-chat/compose.yaml
+  - apps/forma/compose.yaml
+  - apps/english/compose.yaml
+  - apps/notes/compose.yaml
   - compose.monitoring.yaml

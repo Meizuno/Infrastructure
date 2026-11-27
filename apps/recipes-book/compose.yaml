@@ -1,0 +1,71 @@
+# recipes-book — Nuxt + Prisma (github.com/Meizuno/RecipesBook) at
+# recipes.meizuno.com, signing in through `authentication`.
+
+# Deployed with zero downtime via `docker rollout`, so it MUST NOT declare
+# `container_name:` or `ports:` — rollout transiently runs 2 replicas behind
+# Traefik. postgres and the networks live in compose.infra.yaml at the root;
+# depends_on resolves across the merged `meizuno` project, which compose.yaml
+# assembles with include:. Anchors are file-scoped in YAML, so the defaults
+# this file uses are declared here.
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks: [edge, internal]
+  # Give in-flight requests time to drain when rollout stops the old container.
+  stop_grace_period: 25s
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+# Nuxt apps share the same readiness probe (/api/health on :3000). This is the
+# health signal `docker rollout` waits on before removing the old container.
+# start_period is generous enough for a cold Nuxt boot so the container is never
+# spuriously marked unhealthy.
+x-nuxt-defaults: &nuxt-defaults
+  <<: *app-defaults
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+    interval: 5s
+    timeout: 3s
+    retries: 3
+    start_period: 15s
+
+# Drain hook, read by `docker rollout` via the docker-rollout.pre-stop-hook
+# label (no CLI flag needed — the pipeline just runs `docker rollout <svc>`).
+# It runs INSIDE the old replica before stop: `touch /tmp/drain` makes
+# /api/health return 503, so Traefik's loadbalancer.healthcheck drops it from
+# the pool, and the sleep lets in-flight requests finish before it's stopped —
+# the health-based half of real zero-downtime. Referenced per app as *drain-hook.
+x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
+
+services:
+  recipes-book:
+    <<: *nuxt-defaults
+    image: ghcr.io/meizuno/recipes-book:latest
+    environment:
+      # Split auth URLs: server-to-server stays internal (no hairpin), the
+      # browser OAuth flow uses the public auth origin.
+      NUXT_AUTH_SERVICE_URL: http://authentication:8080
+      NUXT_AUTH_PUBLIC_URL: https://auth.meizuno.com
+      NUXT_COOKIE_DOMAIN: .meizuno.com
+      NUXT_DATABASE_URL: postgres://recipes_user:${RECIPES_DB_PASSWORD}@postgres:5432/recipes_book?sslmode=disable
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.recipes-book.rule=Host(`recipes.meizuno.com`)
+      - traefik.http.routers.recipes-book.entrypoints=web
+      - traefik.http.services.recipes-book.loadbalancer.server.port=3000
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.interval=2s
+      - traefik.http.services.recipes-book.loadbalancer.healthcheck.timeout=2s
+      - *drain-hook
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+networks:
+  edge:
+    name: meizuno_edge
+  internal:
+    name: meizuno_internal

@@ -37,7 +37,7 @@ x-app-defaults: &app-defaults
     postgres:
       condition: service_healthy
 
-# Same hook as the apps in compose.apps.yaml (anchors are file-scoped, so it is
+# Same hook as money-manager's and recipes-book's (anchors are file-scoped, so it is
 # repeated here). `docker rollout notes` reads it from the label.
 x-drain-hook: &drain-hook "docker-rollout.pre-stop-hook=touch /tmp/drain && sleep 10"
 
